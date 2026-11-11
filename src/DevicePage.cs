@@ -20,7 +20,7 @@ namespace AliceDesk
         readonly Panel station=new Panel(), recovery=new Panel(), extensions=new Panel();
         readonly Label status=new Label { Dock=DockStyle.Bottom, AutoEllipsis=true, Height=46, Padding=new Padding(12,4,5,2), BackColor=Color.FromArgb(239,245,250) };
         readonly TextBox address=new TextBox {Width=235, AccessibleName="IP-адрес или имя станции"};
-        readonly ComboBox protocol=new ComboBox {Width=95,DropDownStyle=ComboBoxStyle.DropDownList,AccessibleName="Протокол подключения"};
+        readonly ComboBox protocol=new SettingsCombo {Width=95,DropDownStyle=ComboBoxStyle.DropDownList,AccessibleName="Протокол подключения"};
         readonly NumericUpDown port=new NumericUpDown {Minimum=1,Maximum=65535,Width=82,AccessibleName="Порт"};
         readonly TextBox report=new TextBox {Multiline=true,ReadOnly=true,ScrollBars=ScrollBars.Vertical,Height=185,Width=625,WordWrap=true,AccessibleName="Текущая диагностика"};
         readonly TextBox recoveryReport=new TextBox {Multiline=true,ReadOnly=true,ScrollBars=ScrollBars.Vertical,Height=165,Width=625,WordWrap=true,AccessibleName="Результат обслуживания"};
@@ -35,8 +35,14 @@ namespace AliceDesk
         public DevicePage(Profile p)
         {
             profile=p;
-            foreach(var panel in new[]{station,recovery,extensions}) {panel.Dock=DockStyle.Fill;Controls.Add(panel);}
-            Controls.Add(status);status.BringToFront();
+            var layout=new TableLayoutPanel {Dock=DockStyle.Fill,ColumnCount=1,RowCount=2,Padding=Padding.Empty,Margin=Padding.Empty};
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent,100));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            var pages=new Panel {Dock=DockStyle.Fill,Margin=Padding.Empty};
+            foreach(var panel in new[]{station,recovery,extensions}) {panel.Dock=DockStyle.Fill;pages.Controls.Add(panel);}
+            status.Dock=DockStyle.Fill;status.Margin=new Padding(12,1,12,6);
+            status.Height=38;status.Padding=new Padding(10,1,8,1);status.TextAlign=ContentAlignment.MiddleLeft;
+            layout.Controls.Add(pages,0,0);layout.Controls.Add(status,0,1);Controls.Add(layout);
             var body=MediaUi.Body(station); MediaUi.Line(body,"Подключить Станцию",true);
             MediaUi.Line(body,"Попросите у друга адрес, порт, способ входа и исходные копии. Уточните, работает ли доступ после обычной перезагрузки.");
             var handed=MediaUi.Row(body);
@@ -58,7 +64,7 @@ namespace AliceDesk
             Button(auth,"Android Platform Tools",delegate {MediaUi.Open("https://developer.android.com/tools/releases/platform-tools");});
             body.Controls.Add(keyLabel);ShowKey();
             var row=MediaUi.Row(body);Button(row,"Сохранить адрес",delegate {SaveAddress();Notice("Параметры адреса сохранены.");});
-            Button(row,"Проверить и подключить",Connect);Button(row,"Отменить",Cancel);
+            Button(row,"Проверить и подключить",Connect,true);Button(row,"Отменить",Cancel);
             MediaUi.Line(body,"Проверка работает в домашней сети, интернет не нужен. Станция и ПК должны быть включены.");
             body.Controls.Add(report);
             MediaUi.Line(body,"Проверка звука и света",true);
@@ -105,7 +111,7 @@ namespace AliceDesk
             Button(row,"Список и версии",delegate{Start(c=>Packages("",false,c));});
             Button(row,"Найти пакет",delegate{string q=query.Text;Start(c=>Packages(q,true,c));});
             MediaUi.Line(body,"Резервная копия с метаданными",true);
-            var files=MediaUi.Row(body);var cb=new ComboBox{Width=315,DropDownStyle=ComboBoxStyle.DropDownList,AccessibleName="Файл станции"};
+            var files=MediaUi.Row(body);var cb=new SettingsCombo{Width=315,DropDownStyle=ComboBoxStyle.DropDownList,AccessibleName="Файл станции"};
             cb.Items.AddRange(new object[]{DeviceBackup.Sources,DeviceBackup.Launch});cb.SelectedIndex=0;files.Controls.Add(cb);
             Button(files,"Снять копию",delegate{string path=cb.Text;Start(c=>Backup(path,c));});
             var rb=MediaUi.Row(body);Button(rb,"Сравнить с копией…",delegate{ChooseBackup(false);});Button(rb,"Вернуть реестр yse…",delegate{ChooseBackup(true);});
@@ -113,13 +119,13 @@ namespace AliceDesk
             Button(body,"Инструкция по восстановлению HackAlice",delegate{MediaUi.Open("https://hackalice.me/start/recovery/");});
             body.Controls.Add(recoveryReport);
         }
-        void Button(Control parent,string text,Action click) {
-            MediaUi.Btn(parent,text,delegate{try{click();}catch(Exception ex){Notice(Message(ex));}});
+        void Button(Control parent,string text,Action click,bool primary=false) {
+            MediaUi.Btn(parent,text,delegate{try{click();}catch(Exception ex){Notice(Message(ex));}},primary);
         }
         public void Navigate(string section) {
             Control next=section=="recovery"?recovery:section=="extensions"?extensions:station;
             foreach(var c in new[]{station,recovery,extensions}) c.Visible=(c==next);
-            next.BringToFront();status.BringToFront();
+            next.BringToFront();
         }
         protected override void Dispose(bool disposing) {
             if(disposing) {life.Cancel();Cancel();lock(Active){DevicePage found;if(Active.TryGetValue(profile.Id,out found)&&found==this)Active.Remove(profile.Id);}}

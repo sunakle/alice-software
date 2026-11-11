@@ -42,8 +42,8 @@ namespace AliceDesk
         readonly FlowLayoutPanel clock=new FlowLayoutPanel();
         internal ExtensionsView(Profile profile)
         {
-            this.profile=profile; Dock=DockStyle.Fill;
-            var head=new FlowLayoutPanel{Dock=DockStyle.Top,AutoSize=true,WrapContents=true};
+            this.profile=profile; Dock=DockStyle.Fill;Padding=new Padding(12,9,12,12);
+            var head=new FlowLayoutPanel{Dock=DockStyle.Top,AutoSize=true,WrapContents=true,Padding=new Padding(1,2,1,9)};
             head.Controls.Add(new Label{Text="Поиск по каталогу",AutoSize=true,Margin=new Padding(3,7,6,3)});
             find.Width=235;head.Controls.Add(find);
             var split=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=2,RowCount=1};
@@ -52,7 +52,7 @@ namespace AliceDesk
             split.Controls.Add(features,0,0);
             var right=new Panel{Dock=DockStyle.Fill};
             info.Dock=DockStyle.Fill;info.ReadOnly=true;info.BackColor=Color.White;info.Font=new Font("Segoe UI",10);
-            var source=new Button {Text="Открыть источник",AutoSize=true};
+            var source=new SettingsButton {Text="Открыть источник"};
             source.Click+=(s,e)=>{var f=features.SelectedItem as Feature;if(f!=null)MediaUi.Open(f.source);};
             head.Controls.Add(source);
             right.Controls.Add(info);

@@ -29,7 +29,7 @@ namespace AliceDesk {
             string loadError=null;
             try { actions=MediaCommands.Load(p); }
             catch (Exception ex) { actions=new List<DeskAction>(); loadError="Не удалось загрузить команды профиля. "+ex.Message; }
-            var tabs=new TabControl { Dock=DockStyle.Fill };
+            var tabs=new SettingsTabs();
             Controls.Add(tabs);
             var local=new TabPage("Команды этого ПК"); var ha=new TabPage("Подключение Home Assistant");
             tabs.TabPages.Add(local); tabs.TabPages.Add(ha);
@@ -39,7 +39,7 @@ namespace AliceDesk {
             definitions=new ListBox { Width=525, Height=68 }; b.Controls.Add(definitions);
             var row=MediaUi.Row(b);
             MediaUi.Line(row,"ID"); id=MediaUi.Field(row,"",145);
-            MediaUi.Line(row,"Тип"); type=new ComboBox { Width=160,DropDownStyle=ComboBoxStyle.DropDownList };
+            MediaUi.Line(row,"Тип"); type=new SettingsCombo { Width=160,DropDownStyle=ComboBoxStyle.DropDownList };
             type.Items.AddRange(new object[]{"Программа .exe","Сайт HTTPS","Медиаклавиша"}); row.Controls.Add(type);
             MediaUi.Line(b,"Фразы и синонимы через точку с запятой");
             phrases=MediaUi.Field(b,"",490);
@@ -52,7 +52,7 @@ namespace AliceDesk {
             });
             row=MediaUi.Row(b);
             MediaUi.Btn(row,"Новое",delegate { definitions.ClearSelected(); id.Text=""; phrases.Text=""; target.Text=""; type.SelectedIndex=0; id.Focus(); });
-            MediaUi.Btn(row,"Сохранить и разрешить",delegate { Guard(Save); });
+            MediaUi.Btn(row,"Сохранить и разрешить",delegate { Guard(Save); },true);
             MediaUi.Btn(row,"Удалить",delegate { Guard(Remove); });
             MediaUi.Line(b,"Испытать фразу вручную",true);
             row=MediaUi.Row(b); manual=MediaUi.Field(row,"открой хром",245);
@@ -80,7 +80,7 @@ namespace AliceDesk {
             MediaUi.Line(b,"Адрес домашнего сервера (например, https://ha.example.org:8123)");
             server=MediaUi.Field(b,profile.Get("local.agent.haOrigin",""),395);
             MediaUi.Line(b,"Домашний интерфейс Windows, через который доступен HA");
-            row=MediaUi.Row(b); network=new ComboBox {Width=320, DropDownStyle=ComboBoxStyle.DropDownList};
+            row=MediaUi.Row(b); network=new SettingsCombo {Width=320, DropDownStyle=ComboBoxStyle.DropDownList};
             row.Controls.Add(network);
             MediaUi.Btn(row,"Обновить список",delegate { Guard(LoadNetworks); });
             try {LoadNetworks();} catch (Exception) { /* Local Windows commands remain available without a network interface. */ }
@@ -92,7 +92,7 @@ namespace AliceDesk {
             if (pairingId.Length==0) { pairingId=Guid.NewGuid().ToString("N"); profile.Set("local.agent.pair",pairingId); }
             pair=MediaUi.Field(b,pairingId,320); pair.ReadOnly=true;
             row=MediaUi.Row(b);
-            MediaUi.Btn(row,"Проверить и подключить",async delegate { await Connect(); });
+            MediaUi.Btn(row,"Проверить и подключить",async delegate { await Connect(); },true);
             MediaUi.Btn(row,"Отозвать доступ",delegate { Guard(Revoke); });
             MediaUi.Btn(row,"Инструкция Home Assistant",delegate { Guard(ShowGuide); });
             netStatus=MediaUi.Line(b,"Отключено. Локальные команды доступны.");

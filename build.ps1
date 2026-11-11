@@ -32,6 +32,8 @@ try {
     $shared = @('System','System.Core','System.Drawing','System.Windows.Forms')
     $refs = $shared + @('System.Web.Extensions','System.Security','System.Net.Http','System.Xml','System.Xml.Linq','System.IO.Compression','Microsoft.CSharp','System.Management')
     $files = @(Get-ChildItem (Join-Path $root 'src\*.cs') -File | Sort-Object Name | ForEach-Object { $_.FullName })
+    $productInfo = Join-Path $root 'setup\ProductInfo.cs'
+    $files += $productInfo
     $app = Join-Path $payload 'StantsiyaDesk.exe'
     Compile $app $refs @(('/resource:' + (Join-Path $root 'catalog\features.json') + ',features.json')) $files
     Copy-Item (Join-Path $root 'docs') $payload -Recurse
@@ -44,7 +46,7 @@ try {
     $hashPath = Join-Path $stage 'payload.sha256'
     [IO.File]::WriteAllText($hashPath,(Get-FileHash $zip -Algorithm SHA256).Hash,[Text.Encoding]::ASCII)
     $setup = Join-Path $stage 'StantsiyaDesk-Setup-x64.exe'
-    Compile $setup ($shared + @('System.IO.Compression','Microsoft.CSharp')) @(('/resource:' + $zip + ',payload.zip'),('/resource:' + $hashPath + ',payload.sha256')) @((Join-Path $root 'setup\Installer.cs'))
+    Compile $setup ($shared + @('System.IO.Compression','Microsoft.CSharp')) @(('/resource:' + $zip + ',payload.zip'),('/resource:' + $hashPath + ',payload.sha256')) @((Join-Path $root 'setup\Installer.cs'),$productInfo)
     if ($Test) {
         RunCheck $app '--self-test' (Join-Path $dist 'tests.txt')
         RunCheck $setup '--test-lifecycle' (Join-Path $dist 'installer-tests.txt')

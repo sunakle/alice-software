@@ -13,23 +13,22 @@ using Microsoft.Win32;
 namespace AliceDesk {
     internal static class MediaUi {
         internal static FlowLayoutPanel Body(Control parent) {
-            var body = new FlowLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(16), AutoScroll = true,
-                FlowDirection = FlowDirection.TopDown, WrapContents = false };
+            var body = new SettingsBody();
             parent.Controls.Add(body);
             return body;
         }
         internal static Label Line(Control p, string s, bool title = false) {
             var label = new Label { Text = s, AutoSize = true, MaximumSize = new Size(690,0),
-                Margin = new Padding(3, title ? 12 : 5, 3, 5) };
-            if (title) label.Font = new Font(SystemFonts.MessageBoxFont.FontFamily, 12, FontStyle.Bold);
+                Margin = new Padding(3, title ? 4 : 5, 3, 5) };
+            if (title) label.Font = new Font("Segoe UI", 12, FontStyle.Bold);
             p.Controls.Add(label); return label;
         }
         internal static FlowLayoutPanel Row(Control p) {
             var row = new FlowLayoutPanel { AutoSize = true, WrapContents = true, MaximumSize = new Size(700,0), Margin = Padding.Empty };
             p.Controls.Add(row); return row;
         }
-        internal static Button Btn(Control p, string s, EventHandler click) {
-            var b = new Button { Text = s, AutoSize = true, Padding = new Padding(5,2,5,2) };
+        internal static Button Btn(Control p, string s, EventHandler click, bool primary = false) {
+            var b = new SettingsButton { Text = s, Primary = primary };
             b.Click += click; p.Controls.Add(b); return b;
         }
         internal static TextBox Field(Control p, string value, int width) {
@@ -53,14 +52,14 @@ namespace AliceDesk {
             MediaUi.Line(body,"Скажите «Алиса, включи Bluetooth». В Windows добавьте колонку в списке Bluetooth. Во время музыки ПК и Станция должны быть включены.");
             var row = MediaUi.Row(body);
             MediaUi.Btn(row,"Bluetooth Windows",delegate { Open("ms-settings:bluetooth"); });
-            MediaUi.Btn(row,"Открыть Spotify",delegate { Spotify(); });
+            MediaUi.Btn(row,"Открыть Spotify",delegate { Spotify(); },true);
             MediaUi.Btn(row,"Громкость приложений",delegate { Open("ms-settings:apps-volume"); });
             MediaUi.Line(body,"Выход для пробного сигнала",true);
-            outputs = new ComboBox { Width = 385, DropDownStyle = ComboBoxStyle.DropDownList };
+            outputs = new SettingsCombo { Width = 385, DropDownStyle = ComboBoxStyle.DropDownList };
             body.Controls.Add(outputs);
             row = MediaUi.Row(body);
             MediaUi.Btn(row,"Обновить выходы", delegate { RefreshSinks(); });
-            tone = MediaUi.Btn(row,"Проиграть короткий сигнал", async delegate { await Tone(); });
+            tone = MediaUi.Btn(row,"Проиграть короткий сигнал", async delegate { await Tone(); },true);
             MediaUi.Line(body,"Запустите трек в Spotify и назначьте ему тот же выход в разделе Windows «Параметры устройств и громкости приложений». Выбор здесь относится к пробному сигналу.");
             confirmSpotify = MediaUi.Btn(body,"Подтверждаю, слышу Spotify на Станции",delegate {
                 var selected = outputs.SelectedItem as MediaSink;

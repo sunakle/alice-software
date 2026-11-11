@@ -1,33 +1,48 @@
 function New-ProductIcon([string]$path) {
     Add-Type -AssemblyName System.Drawing
-    $bitmap=New-Object Drawing.Bitmap(64,64)
-    $g=[Drawing.Graphics]::FromImage($bitmap)
-    $blue=New-Object Drawing.SolidBrush([Drawing.Color]::FromArgb(35,76,128))
-    $light=New-Object Drawing.SolidBrush([Drawing.Color]::FromArgb(176,216,255))
-    $white=New-Object Drawing.Pen([Drawing.Color]::White,4)
-    $ring=New-Object Drawing.Pen([Drawing.Color]::FromArgb(106,203,247),3)
-    $background=New-Object Drawing.Drawing2D.GraphicsPath
-    $png=New-Object IO.MemoryStream
+    $master = New-Object Drawing.Bitmap(256,256)
+    $g = [Drawing.Graphics]::FromImage($master)
+    $shape = New-Object Drawing.Drawing2D.GraphicsPath
+    $bounds = New-Object Drawing.Rectangle(2,1,60,59)
+    $finish = New-Object Drawing.Drawing2D.LinearGradientBrush($bounds, [Drawing.Color]::FromArgb(204,198,255), [Drawing.Color]::FromArgb(98,77,186), 62.0)
+    $edge = New-Object Drawing.Pen([Drawing.Color]::FromArgb(166,239,232,255),0.7)
+    $light = New-Object Drawing.Pen([Drawing.Color]::FromArgb(248,249,255),2.65)
     try {
         $g.SmoothingMode='AntiAlias'
-        $background.AddArc(3,4,18,18,180,90); $background.AddArc(43,4,18,18,270,90)
-        $background.AddArc(43,42,18,18,0,90); $background.AddArc(3,42,18,18,90,90); $background.CloseFigure()
-        $g.FillPath($blue,$background)
-        $g.DrawEllipse($ring,19,12,26,10)
-        $white.StartCap='Round'; $white.EndCap='Round'
-        $g.DrawLine($white,18,34,18,43); $g.DrawLine($white,24,33,24,43)
-        $g.FillEllipse($light,30,34,3,3); $g.FillEllipse($light,30,40,3,3)
-        $g.DrawLine($white,39,33,39,43); $g.DrawLine($white,46,33,46,43)
-        $bitmap.Save($png,[Drawing.Imaging.ImageFormat]::Png)
-        $writer=New-Object IO.BinaryWriter([IO.File]::Create($path))
+        $g.ScaleTransform(4,4)
+        $shape.AddArc(2,1,26,26,180,90); $shape.AddArc(36,1,26,26,270,90)
+        $shape.AddArc(36,34,26,26,0,90); $shape.AddArc(2,34,26,26,90,90); $shape.CloseFigure()
+        $g.FillPath($finish,$shape); $g.DrawPath($edge,$shape)
+        $g.DrawEllipse($light,21,15,22,7)
+        $light.StartCap='Round'; $light.EndCap='Round'
+        $g.DrawLine($light,19,35,19,44); $g.DrawLine($light,25,35,25,44)
+        $g.FillEllipse([Drawing.Brushes]::White,30.9,36,2.3,2.3); $g.FillEllipse([Drawing.Brushes]::White,30.9,41,2.3,2.3)
+        $g.DrawLine($light,39,35,39,44); $g.DrawLine($light,45,35,45,44)
+        $sizes = @(16,32,48,64,128,256)
+        $frames = @{}
+        foreach ($size in $sizes) {
+            $frame = New-Object Drawing.Bitmap($size,$size)
+            $draw = [Drawing.Graphics]::FromImage($frame)
+            $png = New-Object IO.MemoryStream
+            try {
+                $draw.InterpolationMode='HighQualityBicubic'; $draw.PixelOffsetMode='HighQuality'
+                $draw.DrawImage($master,0,0,$size,$size)
+                $frame.Save($png,[Drawing.Imaging.ImageFormat]::Png)
+                $frames[$size]=$png.ToArray()
+            } finally { $png.Dispose(); $draw.Dispose(); $frame.Dispose() }
+        }
+        $writer = New-Object IO.BinaryWriter([IO.File]::Create($path))
         try {
-            $writer.Write([UInt16]0); $writer.Write([UInt16]1); $writer.Write([UInt16]1)
-            $writer.Write([byte]64); $writer.Write([byte]64); $writer.Write([UInt16]0)
-            $writer.Write([UInt16]1); $writer.Write([UInt16]32)
-            $writer.Write([UInt32]$png.Length); $writer.Write([UInt32]22)
-            $writer.Write($png.ToArray())
+            $writer.Write([uint16]0); $writer.Write([uint16]1); $writer.Write([uint16]$sizes.Count)
+            $offset=6+16*$sizes.Count
+            foreach ($size in $sizes) {
+                $dim=[byte]($size % 256)
+                $writer.Write($dim); $writer.Write($dim); $writer.Write([uint16]0)
+                $writer.Write([uint16]1); $writer.Write([uint16]32)
+                $writer.Write([uint32]$frames[$size].Length); $writer.Write([uint32]$offset)
+                $offset += $frames[$size].Length
+            }
+            foreach ($size in $sizes) { $writer.Write([byte[]]$frames[$size]) }
         } finally { $writer.Dispose() }
-    } finally {
-        $png.Dispose(); $background.Dispose(); $blue.Dispose(); $light.Dispose(); $white.Dispose(); $ring.Dispose(); $g.Dispose(); $bitmap.Dispose()
-    }
+    } finally { $light.Dispose(); $edge.Dispose(); $finish.Dispose(); $shape.Dispose(); $g.Dispose(); $master.Dispose() }
 }

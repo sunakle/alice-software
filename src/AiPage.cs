@@ -41,7 +41,7 @@ namespace AliceDesk
         private static TextBox Input() { return new TextBox {Dock = DockStyle.Fill, MaxLength = 2048}; }
         private static ComboBox Choice(bool editable)
         {
-            return new ComboBox {DropDownStyle = editable ? ComboBoxStyle.DropDown : ComboBoxStyle.DropDownList,
+            return new SettingsCombo {DropDownStyle = editable ? ComboBoxStyle.DropDown : ComboBoxStyle.DropDownList,
                 Dock = DockStyle.Fill, MaxLength = 240};
         }
         private static Label Note(string text)
@@ -50,13 +50,14 @@ namespace AliceDesk
         }
         private static Button Btn(string caption, Action action)
         {
-            var b = new Button {Text = caption, AutoSize = true, Padding = new Padding(5,2,5,2)};
+            var b = new SettingsButton {Text = caption};
             b.Click += delegate { action(); };
             return b;
         }
-        private Button ActionButton(string caption, Action action)
+        private Button ActionButton(string caption, Action action, bool primary=false)
         {
             var button = Btn(caption, delegate { Guard(action); });
+            ((SettingsButton)button).Primary=primary;
             locked.Add(button);
             return button;
         }
@@ -82,9 +83,9 @@ namespace AliceDesk
         private static TableLayoutPanel Grid(TabPage tab)
         {
             tab.AutoScroll = true;
-            tab.Padding = new Padding(8);
-            var grid = new TableLayoutPanel {Dock = DockStyle.Top, AutoSize = true, ColumnCount = 2,
-                Padding = new Padding(4), GrowStyle = TableLayoutPanelGrowStyle.AddRows, RowCount = 0};
+            tab.Padding = new Padding(10,12,10,14);
+            var grid = new SettingsGrid {Dock = DockStyle.Top, AutoSize = true, ColumnCount = 2,
+                Padding = new Padding(13,12,13,15), GrowStyle = TableLayoutPanelGrowStyle.AddRows, RowCount = 0};
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 125));
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             tab.Controls.Add(grid);
@@ -110,7 +111,7 @@ namespace AliceDesk
         {
             profile = p;
             Dock = DockStyle.Fill;
-            var tabs = new TabControl {Dock = DockStyle.Fill};
+            var tabs = new SettingsTabs();
             var textTab = new TabPage("Провайдер и чат");
             var voiceTab = new TabPage("Голос на Станции");
             tabs.TabPages.Add(textTab);
@@ -130,7 +131,7 @@ namespace AliceDesk
             Row(grid, "Ваш текст", ask);
             cancelButton = Btn("Остановить", Cancel);
             cancelButton.Enabled = false;
-            Row(grid, "", Bar(ActionButton("Отправить запрос", delegate { RunApi(false); }), cancelButton,
+            Row(grid, "", Bar(ActionButton("Отправить запрос", delegate { RunApi(false); }, true), cancelButton,
                 ActionButton("Новый диалог", delegate { ResetChat(); result.Text = "Начат новый диалог."; })));
             Row(grid, "", result);
             Row(grid, "Диалог", transcript);

@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -17,6 +18,7 @@ internal sealed class Installation
     const string Product="Пульт Станции";
     const string AppName="StantsiyaDesk.exe";
     const string AppId="StantsiyaDesk";
+    const string Version="1.1.0";
     readonly string root, startMenu, uninstallKey, runKey;
     public Installation(string root,string startMenu,string uninstallKey,string runKey)
     {
@@ -97,7 +99,7 @@ internal sealed class Installation
             string app=Path.Combine(final,AppName);
             Shortcut(Path.Combine(startMenu,Product+".lnk"),app);
             using(var key=Registry.CurrentUser.CreateSubKey(uninstallKey)) {
-                key.SetValue("DisplayName",Product);key.SetValue("DisplayVersion","1.0.0");key.SetValue("Publisher","sunakle / alice-software");
+                key.SetValue("DisplayName",Product);key.SetValue("DisplayVersion",Version);key.SetValue("Publisher","sunakle / alice-software");
                 key.SetValue("DisplayIcon",app);key.SetValue("InstallLocation",final);
                 key.SetValue("UninstallString","\""+Path.Combine(final,"Remove.exe")+"\" --uninstall");
                 key.SetValue("NoModify",1,RegistryValueKind.DWord);key.SetValue("NoRepair",1,RegistryValueKind.DWord);
@@ -133,6 +135,117 @@ internal sealed class Installation
             @"Software\Microsoft\Windows\CurrentVersion\Uninstall\StantsiyaDesk",@"Software\Microsoft\Windows\CurrentVersion\Run");
     }
     static bool Ask(string message) {return MessageBox.Show(message,Product,MessageBoxButtons.YesNo,MessageBoxIcon.Question)==DialogResult.Yes;}
+    static bool Welcome(bool installed)
+    {
+        using(var dialog=new SetupDialog(installed))return dialog.ShowDialog()==DialogResult.OK;
+    }
+
+    // Only the two entry screens use the illustrated layout. Recovery and removal keep their existing prompts.
+    sealed class SetupDialog : Form
+    {
+        internal SetupDialog(bool installed)
+        {
+            AutoScaleDimensions=new SizeF(96,96);
+            AutoScaleMode=AutoScaleMode.Dpi;StartPosition=FormStartPosition.CenterScreen;
+            Text=installed?"Установка завершена":"Установка Пульта Станции";
+            Icon=Icon.ExtractAssociatedIcon(Own);
+            FormBorderStyle=FormBorderStyle.FixedDialog;MaximizeBox=false;MinimizeBox=false;
+            BackColor=Color.FromArgb(249,248,252);ForeColor=Color.FromArgb(35,32,47);
+            Font=new Font("Segoe UI",10);ClientSize=new Size(520,345);
+            var layout=new TableLayoutPanel {Dock=DockStyle.Fill,Margin=Padding.Empty,ColumnCount=1,RowCount=4};
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent,100));layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));Controls.Add(layout);
+            layout.Controls.Add(new SetupArt {Dock=DockStyle.Fill,Margin=Padding.Empty,AccessibleRole=AccessibleRole.Graphic,AccessibleName="Значок Пульта Станции"},0,0);
+            var title=new Label {Text=installed?"Пульт Станции установлен":"Пульт Станции",AutoSize=true,
+                Anchor=AnchorStyles.None,TextAlign=ContentAlignment.MiddleCenter,Margin=new Padding(12,13,12,2),Font=new Font(Font.FontFamily,20,FontStyle.Bold)};
+            layout.Controls.Add(title,0,1);
+            var body=new Label {AutoSize=true,Anchor=AnchorStyles.None,TextAlign=ContentAlignment.MiddleCenter,Margin=new Padding(16,0,16,14),
+                ForeColor=Color.FromArgb(84,79,100),Text=installed?"Приложение можно открыть сейчас или из меню «Пуск».":"Версия "+Version+" для Windows x64.\nПриложение появится в меню «Пуск» у текущего пользователя."};
+            layout.Controls.Add(body,0,2);
+            var actions=new FlowLayoutPanel {AutoSize=true,FlowDirection=FlowDirection.LeftToRight,WrapContents=false,
+                Anchor=AnchorStyles.None,Margin=new Padding(12,0,12,20)};
+            layout.Controls.Add(actions,0,3);
+            var cancel=new SetupButton(installed?"Готово":"Отмена",false,DialogResult.Cancel);
+            var ok=new SetupButton(installed?"Открыть приложение":"Установить",true,DialogResult.OK);
+            cancel.TabIndex=1;ok.TabIndex=0;actions.Controls.Add(cancel);actions.Controls.Add(ok);
+            AcceptButton=ok;CancelButton=cancel;Shown+=(s,e)=>ok.Focus();
+        }
+    }
+    static GraphicsPath Rounded(float x,float y,float width,float height,float radius)
+    {
+        var p=new GraphicsPath();float d=Math.Min(2*radius,Math.Min(width,height));
+        p.AddArc(x,y,d,d,180,90);p.AddArc(x+width-d,y,d,d,270,90);
+        p.AddArc(x+width-d,y+height-d,d,d,0,90);p.AddArc(x,y+height-d,d,d,90,90);p.CloseFigure();return p;
+    }
+    sealed class SetupArt : Control
+    {
+        internal SetupArt(){SetStyle(ControlStyles.OptimizedDoubleBuffer|ControlStyles.ResizeRedraw,true);}
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g=e.Graphics;if(Width<1||Height<1)return;
+            g.SmoothingMode=SmoothingMode.AntiAlias;
+            var waveScale=g.Save();g.ScaleTransform(Width/520f,Height/140f);
+            var bounds=new RectangleF(0,0,520,140);
+            using(var sky=new LinearGradientBrush(bounds,Color.FromArgb(142,206,241),Color.FromArgb(34,126,199),8))
+                g.FillRectangle(sky,bounds);
+            using(var waves=new GraphicsPath()) {
+                waves.AddBezier(-4,-8,104,-8,170,53,241,60);waves.AddBezier(241,60,337,70,378,41,525,96);
+                waves.AddLine(525,96,525,145);waves.AddLine(525,145,-4,145);waves.CloseFigure();
+                using(var band=new LinearGradientBrush(bounds,Color.FromArgb(177,145,221),Color.FromArgb(228,229,250),0f))g.FillPath(band,waves);
+            }
+            using(var waves=new GraphicsPath()) {
+                waves.AddBezier(-4,0,91,3,160,68,240,80);waves.AddBezier(240,80,322,92,410,68,525,114);
+                waves.AddLine(525,114,525,145);waves.AddLine(525,145,-4,145);waves.CloseFigure();
+                using(var band=new LinearGradientBrush(bounds,Color.FromArgb(232,81,121),Color.FromArgb(255,185,99),7f))g.FillPath(band,waves);
+            }
+            using(var waves=new GraphicsPath()) {
+                waves.AddBezier(-4,39,101,33,94,81,194,94);waves.AddBezier(194,94,319,106,332,154,448,148);
+                waves.AddLine(448,148,-4,148);waves.CloseFigure();
+                using(var band=new LinearGradientBrush(bounds,Color.FromArgb(129,64,148),Color.FromArgb(247,75,111),2f))g.FillPath(band,waves);
+            }
+            g.Restore(waveScale);
+            float side=Math.Min(Height*.63f,100*g.DpiX/96f);
+            g.TranslateTransform((Width-side)/2f,(Height-side)/2f);g.ScaleTransform(side/64f,side/64f);
+            using(var shadow=Rounded(2,5,60,58,13))
+            using(var shade=new SolidBrush(Color.FromArgb(60,50,31,88)))g.FillPath(shade,shadow);
+            using(var tile=Rounded(2,1,60,59,13))
+            using(var finish=new LinearGradientBrush(new RectangleF(2,1,60,59),Color.FromArgb(204,198,255),Color.FromArgb(98,77,186),62))
+            using(var border=new Pen(Color.FromArgb(166,239,232,255),.7f)) {g.FillPath(finish,tile);g.DrawPath(border,tile);}
+            using(var light=new Pen(Color.FromArgb(248,249,255),2.65f))
+            using(var dot=new SolidBrush(Color.White)) {
+                g.DrawEllipse(light,21,15,22,7);light.StartCap=light.EndCap=LineCap.Round;
+                g.DrawLine(light,19,35,19,44);g.DrawLine(light,25,35,25,44);
+                g.FillEllipse(dot,30.9f,36,2.3f,2.3f);g.FillEllipse(dot,30.9f,41,2.3f,2.3f);
+                g.DrawLine(light,39,35,39,44);g.DrawLine(light,45,35,45,44);
+            }
+        }
+    }
+    sealed class SetupButton : Button
+    {
+        readonly bool primary;
+        internal SetupButton(string text,bool primary,DialogResult result)
+        {
+            Text=text;AccessibleName=text;this.primary=primary;DialogResult=result;
+            FlatStyle=FlatStyle.Flat;FlatAppearance.BorderSize=0;UseVisualStyleBackColor=false;Cursor=Cursors.Hand;
+            Width=text.Length>15?174:122;Height=34;Margin=new Padding(4,2,4,2);
+            SetStyle(ControlStyles.UserPaint|ControlStyles.OptimizedDoubleBuffer|ControlStyles.AllPaintingInWmPaint,true);
+        }
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g=e.Graphics;float d=g.DpiX/96f;g.SmoothingMode=SmoothingMode.AntiAlias;
+            bool hover=ClientRectangle.Contains(PointToClient(MousePosition));
+            using(var p=Rounded(1,1,Width-2,Height-2,7*d))
+            using(var fill=new SolidBrush(primary?(hover?Color.FromArgb(15,101,220):Color.FromArgb(21,114,233)):(hover?Color.FromArgb(242,240,249):Color.White)))
+            using(var edge=new Pen(primary?Color.FromArgb(21,105,219):Color.FromArgb(203,201,214),d)) {g.FillPath(fill,p);g.DrawPath(edge,p);}
+            TextRenderer.DrawText(g,Text,Font,ClientRectangle,primary?Color.White:Color.FromArgb(48,44,64),
+                TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter|TextFormatFlags.NoPrefix);
+            if(Focused && ShowFocusCues) {
+                var r=ClientRectangle;r.Inflate(-(int)(4*d),-(int)(4*d));
+                ControlPaint.DrawFocusRectangle(g,r,primary?Color.White:Color.Black,primary?Color.RoyalBlue:Color.White);
+            }
+        }
+    }
     [STAThread]
     static int Main(string[] args)
     {
@@ -149,7 +262,7 @@ internal sealed class Installation
             if(worker) {
                 int pid; if(!Int32.TryParse(args[1],out pid))return 2;
                 try {using(var parent=Process.GetProcessById(pid))parent.WaitForExit(8000);}catch(ArgumentException){}
-            } else if(!Ask("Установить «Пульт Станции» для текущего пользователя Windows? Ярлык появится в меню «Пуск»."))return 0;
+            } else if(!Welcome(false))return 0;
             bool acquired;
             string mutexName=@"Local\StantsiyaDesk.App."+WindowsIdentity.GetCurrent().User.Value;
             string launch=null;
@@ -159,7 +272,7 @@ internal sealed class Installation
                 finally {mutex.ReleaseMutex();}
             }
             if(worker){MessageBox.Show("Приложение удалено.",Product);return 0;}
-            if(Ask("Установка завершена. Открыть «Пульт Станции»?"))Process.Start(launch);
+            if(Welcome(true))Process.Start(launch);
             return 0;
         } catch(Exception ex){MessageBox.Show(ex.Message,Product,MessageBoxButtons.OK,MessageBoxIcon.Error);return 1;}
     }
