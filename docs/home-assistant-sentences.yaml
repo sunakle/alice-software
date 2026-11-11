@@ -1,0 +1,8 @@
+# Скопируйте как custom_sentences/ru/stantsiya_desk.yaml.
+language: ru
+intents:
+  StantsiyaDeskOpenChrome:
+    data:
+      - sentences:
+          - "открой хром на компьютере"
+          - "открой браузер на домашнем компьютере"

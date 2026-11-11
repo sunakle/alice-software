@@ -1,0 +1,52 @@
+# Скопируйте как packages/stantsiya_desk.yaml в каталог конфигурации Home Assistant.
+# Подставьте значение «Адресат команды» со вкладки Windows в поле pair ниже.
+input_text:
+  stantsiya_desk_command:
+    name: Команда для Пульта Станции
+    max: 255
+    initial: "idle"
+  stantsiya_desk_reply:
+    name: Ответ Пульта Станции
+    max: 255
+    initial: "idle"
+
+script:
+  stantsiya_desk_chrome:
+    alias: Открыть Chrome на домашнем ПК
+    mode: queued
+    max: 5
+    sequence:
+      - variables:
+          request_id: "{{ now().strftime('%Y%m%d%H%M%S%f') }}_{{ range(1000, 9999) | random }}"
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.stantsiya_desk_command
+        data:
+          value: >-
+            {{ {'pair':'ЗАМЕНИТЕ_НА_АДРЕСАТ_ИЗ_ПРОГРАММЫ', 'id':request_id,
+                'ts':as_timestamp(now())|int, 'action':'chrome'} | to_json }}
+      - wait_template: "{{ states('input_text.stantsiya_desk_reply').startswith(request_id ~ '|') }}"
+        timeout: "00:00:34"
+        continue_on_timeout: true
+      - variables:
+          reply:
+            speech: >-
+              {% if states('input_text.stantsiya_desk_reply') == request_id ~ '|ok' %}
+                Windows приняла команду открыть Chrome.
+              {% elif states('input_text.stantsiya_desk_reply') == request_id ~ '|denied' %}
+                Агент отклонил команду. Проверь разрешение Chrome на компьютере.
+              {% else %}
+                Нет подтверждения от компьютера. Проверь, включён ли он и подключён ли агент.
+              {% endif %}
+      - stop: Результат команды
+        response_variable: reply
+
+intent_script:
+  StantsiyaDeskOpenChrome:
+    action:
+      - action: script.stantsiya_desk_chrome
+        response_variable: result
+      - stop: Вернуть ответ с компьютера
+        response_variable: result
+    speech:
+      text: "{{ action_response.speech }}"
