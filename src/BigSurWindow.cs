@@ -271,7 +271,7 @@ namespace AliceDesk
         }
     }
 
-    internal sealed class WindowDot : Button
+    internal sealed class WindowDot : PaintedButton
     {
         readonly int kind;
         readonly Color color;

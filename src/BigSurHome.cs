@@ -24,6 +24,8 @@ namespace AliceDesk
             BackColor = Canvas;
             AccessibleName = "Обзор Станции";
             sheet.BackColor = Canvas;
+            // Only the height scrolls. The sheet follows the viewport even while this page is hidden.
+            sheet.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             Controls.Add(sheet);
             string model = profile.Get("station.expected", "Яндекс Станция Лайт 2 с часами · YNDX-00026");
             banner = new Hero(model, delegate { navigate("station"); });
@@ -70,21 +72,29 @@ namespace AliceDesk
             if (arranging || station == null || ClientSize.Width < 1) return;
             arranging = true;
             try {
-                int width = Math.Min(ClientSize.Width, S(1220));
-                int pad = S(width < S(600) ? 15 : 28);
-                int available = Math.Max(1, width - pad * 2);
-                int columns = available >= S(594) ? 3 : available >= S(390) ? 2 : 1;
-                int gap = S(12);
-                int y = S(22);
-                int heroHeight = S(available >= S(525) ? 229 : 184);
-                banner.SetBounds(pad, y, available, heroHeight);
-                y += heroHeight + S(19);
-                y = PlaceGroup(computerHeading, computer, y, pad, available, columns, gap);
-                y = PlaceGroup(stationHeading, station, y + S(7), pad, available, columns, gap);
-                Point scroll = AutoScrollPosition;
-                sheet.SetBounds(Math.Max(0, (ClientSize.Width - width) / 2) + scroll.X, scroll.Y, width, y + S(22));
-                AutoScrollMinSize = new Size(0, sheet.Height);
+                int viewport = ClientSize.Width;
+                ArrangeSheet();
+                // A vertical scrollbar can change which row the last tile fits on.
+                if (ClientSize.Width != viewport) ArrangeSheet();
             } finally { arranging = false; }
+        }
+        void ArrangeSheet()
+        {
+            int width = Math.Min(ClientSize.Width, S(1220));
+            int pad = S(width < S(600) ? 15 : 28);
+            int available = Math.Max(1, width - pad * 2);
+            int columns = available >= S(594) ? 3 : available >= S(390) ? 2 : 1;
+            int gap = S(12);
+            int y = S(22);
+            int heroHeight = S(available >= S(525) ? 229 : 184);
+            banner.SetBounds(pad, y, available, heroHeight);
+            y += heroHeight + S(19);
+            y = PlaceGroup(computerHeading, computer, y, pad, available, columns, gap);
+            y = PlaceGroup(stationHeading, station, y + S(7), pad, available, columns, gap);
+            Point scroll = AutoScrollPosition;
+            sheet.SetBounds(Math.Max(0, (ClientSize.Width - width) / 2) + scroll.X, scroll.Y, width, y + S(22));
+            AutoScrollMinSize = new Size(0, sheet.Height);
+            AdjustFormScrollbars(AutoScroll);
         }
         int PlaceGroup(Label heading, Tile[] tiles, int y, int pad, int width, int count, int gap)
         {
@@ -157,7 +167,7 @@ namespace AliceDesk
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 using (var mask = Round(1, 1, w-2, h-2, 15*d)) {
                     GraphicsState clip = g.Save();
-                    g.SetClip(mask);
+                    g.SetClip(mask, CombineMode.Intersect);
                     GraphicsState waves = g.Save();
                     g.ScaleTransform(w/920f, h/236f);
                     Landscape(g);
@@ -177,8 +187,10 @@ namespace AliceDesk
                     int textWidth = wide ? (int)(w*.58f)-left : w-left*2;
                     var titleBox = new Rectangle(left, top, textWidth, (int)(53*d));
                     var modelBox = new Rectangle(left+1, titleBox.Bottom, textWidth, (int)(39*d));
-                    TextRenderer.DrawText(g, "Моя Станция", titleFont, titleBox, Color.White, TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine);
-                    TextRenderer.DrawText(g, model, modelFont, modelBox, Color.White, TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding | TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis);
+                    // Transparent child buttons replay the banner with a translated, clipped graphics context.
+                    const TextFormatFlags bannerText = TextFormatFlags.PreserveGraphicsTranslateTransform | TextFormatFlags.PreserveGraphicsClipping | TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis;
+                    TextRenderer.DrawText(g, "Моя Станция", titleFont, titleBox, Color.White, bannerText | TextFormatFlags.SingleLine);
+                    TextRenderer.DrawText(g, model, modelFont, modelBox, Color.White, bannerText | TextFormatFlags.NoPrefix | TextFormatFlags.WordBreak);
                     g.Restore(clip);
                 }
             }
@@ -298,7 +310,7 @@ namespace AliceDesk
         }
 
         // Using buttons keeps the illustrated controls accessible to keyboards and screen readers.
-        abstract class SurfaceButton : Button
+        abstract class SurfaceButton : PaintedButton
         {
             protected bool hover, pressed;
             protected SurfaceButton()

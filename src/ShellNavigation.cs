@@ -92,7 +92,17 @@ namespace AliceDesk
         }
     }
 
-    internal sealed class SidebarButton : Button
+    internal abstract class PaintedButton : Button
+    {
+        protected PaintedButton()
+        {
+            // ButtonBase normally paints every pixel itself and skips the background pass.
+            // Our glyphs and rounded shapes need WinForms to paint the parent surface first.
+            SetStyle(ControlStyles.Opaque, false);
+        }
+    }
+
+    internal sealed class SidebarButton : PaintedButton
     {
         internal readonly string Page;
         internal bool Selected;
@@ -121,7 +131,7 @@ namespace AliceDesk
         }
     }
 
-    internal sealed class HistoryButton : Button
+    internal sealed class HistoryButton : PaintedButton
     {
         readonly string id;
         bool hot;
@@ -143,7 +153,7 @@ namespace AliceDesk
         }
     }
 
-    internal sealed class ProfileButton : Button
+    internal sealed class ProfileButton : PaintedButton
     {
         readonly Font nameFont=new Font("Segoe UI Semibold",9.5f);
         readonly Font captionFont=new Font("Segoe UI",8.25f);

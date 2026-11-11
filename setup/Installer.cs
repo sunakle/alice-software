@@ -18,7 +18,7 @@ internal sealed class Installation
     const string Product="Пульт Станции";
     const string AppName="StantsiyaDesk.exe";
     const string AppId="StantsiyaDesk";
-    const string Version="1.1.0";
+    const string Version="1.1.1";
     readonly string root, startMenu, uninstallKey, runKey;
     public Installation(string root,string startMenu,string uninstallKey,string runKey)
     {
@@ -230,6 +230,7 @@ internal sealed class Installation
             FlatStyle=FlatStyle.Flat;FlatAppearance.BorderSize=0;UseVisualStyleBackColor=false;Cursor=Cursors.Hand;
             Width=text.Length>15?174:122;Height=34;Margin=new Padding(4,2,4,2);
             SetStyle(ControlStyles.UserPaint|ControlStyles.OptimizedDoubleBuffer|ControlStyles.AllPaintingInWmPaint,true);
+            SetStyle(ControlStyles.Opaque,false);
         }
         protected override void OnPaint(PaintEventArgs e)
         {

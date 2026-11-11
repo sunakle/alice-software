@@ -91,7 +91,7 @@ namespace AliceDesk
     }
 
     // All behavior (mnemonics, AcceptButton, UI Automation and PerformClick) stays with Button.
-    internal sealed class SettingsButton : Button
+    internal sealed class SettingsButton : PaintedButton
     {
         internal bool Primary {get;set;}
         bool hover,down;
