@@ -175,12 +175,37 @@ namespace AliceDesk
         protected override void OnDrawItem(DrawItemEventArgs e)
         {
             if(e.Index<0 || e.Index>=TabCount)return;
-            var g=e.Graphics;var r=e.Bounds;bool active=e.Index==SelectedIndex;
-            using(var background=new SolidBrush(BigSurTheme.Canvas))g.FillRectangle(background,r);
+            using(var background=new SolidBrush(BigSurTheme.Canvas))e.Graphics.FillRectangle(background,e.Bounds);
+            DrawTab(e.Graphics, e.Index, e.Bounds);
+        }
+        void DrawTab(Graphics g, int index, Rectangle r)
+        {
+            bool active = index == SelectedIndex;
             if(active)BigSurTheme.Box(g,new RectangleF(r.X+1.5f,r.Y+1.5f,r.Width-3,r.Height-3),6,
                 Color.FromArgb(62,66,84),Focused?Color.FromArgb(80,154,247):BigSurTheme.Line);
-            TextRenderer.DrawText(g,TabPages[e.Index].Text,Font,r,active?BigSurTheme.Ink:BigSurTheme.Muted,
+            TextRenderer.DrawText(g,TabPages[index].Text,Font,r,active?BigSurTheme.Ink:BigSurTheme.Muted,
                 TextFormatFlags.VerticalCenter|TextFormatFlags.HorizontalCenter|TextFormatFlags.NoPrefix|TextFormatFlags.SingleLine);
+        }
+        void DrawHeader(Graphics g)
+        {
+            int bottom = 0;
+            for (int i = 0; i < TabCount; i++) bottom = Math.Max(bottom, GetTabRect(i).Bottom);
+            using (var brush = new SolidBrush(BigSurTheme.Canvas))
+                g.FillRectangle(brush, 0, 0, ClientSize.Width, Math.Min(ClientSize.Height, bottom + 1));
+            for (int i = 0; i < TabCount; i++) DrawTab(g, i, GetTabRect(i));
+        }
+        protected override void WndProc(ref Message m)
+        {
+            base.WndProc(ref m);
+            // The native tab control paints its own button borders between owner-drawn
+            // items. Cover only the header after the native paint; leave every page
+            // and its child windows to the native tab control.
+            if (!IsHandleCreated || TabCount == 0) return;
+            if (m.Msg == 0x000f) {
+                using (var g = CreateGraphics()) DrawHeader(g);
+            } else if ((m.Msg == 0x0317 || m.Msg == 0x0318) && m.WParam != IntPtr.Zero) {
+                using (var g = Graphics.FromHdc(m.WParam)) DrawHeader(g);
+            }
         }
         protected override void OnSelectedIndexChanged(EventArgs e){base.OnSelectedIndexChanged(e);Invalidate();}
         protected override void OnGotFocus(EventArgs e){base.OnGotFocus(e);Invalidate();}
