@@ -64,7 +64,8 @@ namespace AliceDesk {
             confirmSpotify = MediaUi.Btn(body,"Подтверждаю, слышу Spotify на Станции",delegate {
                 var selected = outputs.SelectedItem as MediaSink;
                 if (selected == null) return;
-                profile.Set("local.media.confirmed", selected.Id + "|" + DateTime.Now.ToString("s"));
+                // The Windows default can change later, so it cannot identify a confirmed speaker.
+                profile.Set("local.media.confirmed", selected.Id == MediaAudio.DefaultId ? "" : selected.Id + "|" + DateTime.Now.ToString("s"));
                 status.Text = "Вы подтвердили слышимость Spotify на Станции через «" + selected.Name + "».";
             });
             status = MediaUi.Line(body,"");
@@ -132,6 +133,7 @@ namespace AliceDesk {
         public override string ToString() { return Name; }
     }
     internal static class MediaAudio {
+        internal const string DefaultId = "windows:default";
         [StructLayout(LayoutKind.Sequential,CharSet=CharSet.Unicode)]
         struct Caps { public ushort Maker, Product; public uint Version;
             [MarshalAs(UnmanagedType.ByValTStr,SizeConst=32)] public string Name;
@@ -168,7 +170,10 @@ namespace AliceDesk {
                 Caps caps; string id = EndpointId(i);
                 if (!String.IsNullOrEmpty(id) && waveOutGetDevCapsW((IntPtr)i,out caps,Marshal.SizeOf(typeof(Caps))) == 0)
                     list.Add(new MediaSink { Id = id, Name = caps.Name + "  [" + (i+1) + "]", Index = i });
-            } return list;
+            }
+            if (count > 0 && list.Count == 0)
+                list.Add(new MediaSink { Id = DefaultId, Name = "Выход Windows по умолчанию", Index = -1 });
+            return list;
         }
         static short[] Samples() {
             const int rate = 44100, count = 22050;
@@ -185,7 +190,7 @@ namespace AliceDesk {
             var format = new Format { Tag=1,Channels=1,Rate=44100,ByteRate=88200,Block=2,Bits=16 };
             IntPtr handle;
             using (var signal = new AutoResetEvent(false)) {
-                Check(waveOutOpen(out handle,(uint)selected.Index,ref format,signal.SafeWaitHandle.DangerousGetHandle(),IntPtr.Zero,0x50000));
+                Check(waveOutOpen(out handle,unchecked((uint)selected.Index),ref format,signal.SafeWaitHandle.DangerousGetHandle(),IntPtr.Zero,0x50000));
                 int size = Marshal.SizeOf(typeof(Header)); var data = Samples();
                 IntPtr samples = Marshal.AllocHGlobal(data.Length * 2), hdr = Marshal.AllocHGlobal(size);
                 bool prepared = false;

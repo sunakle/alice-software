@@ -65,7 +65,13 @@ namespace AliceDesk
                     }
                 });
             } finally {
-                if(Directory.Exists(dir)) Directory.Delete(dir,true);
+                try {
+                    if(Directory.Exists(dir)) Directory.Delete(dir,true);
+                } catch(IOException ex) {
+                    failed++; results.Add("FAIL Очистка временных файлов — "+ex.Message);
+                } catch(UnauthorizedAccessException ex) {
+                    failed++; results.Add("FAIL Очистка временных файлов — "+ex.Message);
+                }
                 File.WriteAllLines(reportPath,results,Disk.Utf8);
             }
             return failed==0?0:1;
@@ -75,15 +81,28 @@ namespace AliceDesk
         {
             var store=new ProfileStore(root);
             var p=store.Active;
-            p.Set("ai.deepseek.model","test-model");p.Set("local.stationpin","private-mark");p.PutSecret("initially.empty","");
+            p.Set("ai.deepseek.model","test-model");p.Set("ai.windowsVoice.rate","2");p.Set("local.stationpin","private-mark");p.PutSecret("initially.empty","");
             string marker="fixture-"+Guid.NewGuid().ToString("N");
             p.PutSecret("ai.test",marker);Require(p.Secret("ai.test")==marker);
+            string vault=Path.Combine(p.DataDirectory,"vault");
+            var existing=Directory.GetFiles(vault,"*.bin");
+            p.PutSecret("corrupt.test",marker);
+            string corrupt=Directory.GetFiles(vault,"*.bin").Except(existing).Single();
+            File.WriteAllText(corrupt,"not valid base64");
+            bool invalid=false;
+            try { p.Secret("corrupt.test"); } catch(InvalidDataException) { invalid=true; }
+            Require(invalid);
+            File.WriteAllBytes(corrupt,new byte[]{0xff});
+            invalid=false;
+            try { p.Secret("corrupt.test"); } catch(InvalidDataException) { invalid=true; }
+            Require(invalid);
+            p.PutSecret("corrupt.test","");
             p.Set("agent.actions",Disk.Json(new[]{new DeskAction { Id="secretlink",Phrases="сайт",Kind="url",Target="https://example.org/?token=fixture-url-secret" }}));
             var export=Path.Combine(root,"export.json");store.Export(p,export);
             Require(!File.ReadAllText(export).Contains(marker)&&!File.ReadAllText(export).Contains("private-mark")&&!File.ReadAllText(export).Contains("fixture-url-secret"));
             foreach(var f in Directory.GetFiles(p.DataDirectory,"*",SearchOption.AllDirectories)) Require(!File.ReadAllText(f).Contains(marker));
             var imported=store.Import(export);
-            Require(imported.Id!=p.Id&&imported.Get("ai.deepseek.model")=="test-model"&&imported.Secret("ai.test")==""&&imported.Get("local.stationpin")=="");
+            Require(imported.Id!=p.Id&&imported.Get("ai.deepseek.model")=="test-model"&&imported.Get("ai.windowsVoice.rate")=="2"&&imported.Secret("ai.test")==""&&imported.Get("local.stationpin")=="");
             File.WriteAllText(export,"{\"version\":1,\"name\":\"X\",\"settings\":{\"local.approved\":\"x\",\"apiKey\":\"x\"}}");
             var untrusted=store.Import(export);Require(untrusted.Get("local.approved")==""&&untrusted.Get("apiKey")=="");
             var copy=store.Duplicate(p,"Копия");store.Select(copy);copy.Rename("Кабинет");

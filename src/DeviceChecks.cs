@@ -19,6 +19,18 @@ namespace AliceDesk
         }
         internal static void Run()
         {
+            string catalogItems=String.Join(",",Enumerable.Range(0,30).Select(i=>"{\"id\":\"item"+i+"\",\"name\":\"Item\"}"));
+            string catalogPrefix="{\"schema\":1,\"documentation\":{\"defaultSpace\":\"space\",\"materialLicense\":\"license\"},\"features\":[";
+            Require(Catalog.Parse(catalogPrefix+catalogItems+"]}").features.Length==30,"чтение исправного каталога");
+            Reject(()=>Catalog.Parse("{\"schema\":1,\"features\":["+catalogItems+"]}"));
+            Reject(()=>Catalog.Parse(catalogPrefix+"null,"+catalogItems+"]}"));
+            Reject(()=>Catalog.Parse("{broken"));
+            string lightSnapshot=String.Join("\n",Enumerable.Range(1,3)
+                .SelectMany(zone=>new[]{"red","green","blue"}.Select(color=>zone+" "+color+" 7 led_ring_fb")));
+            Require(DeviceLight.ValidateSnapshot(lightSnapshot)==lightSnapshot,"проверка девяти каналов света");
+            Reject(()=>DeviceLight.ValidateSnapshot(lightSnapshot.Replace("3 blue 7 led_ring_fb","1 red 7 led_ring_fb")));
+            Reject(()=>DeviceLight.ValidateSnapshot(lightSnapshot.Replace("3 blue 7 led_ring_fb","3 blue 256 led_ring_fb")));
+            Reject(()=>DeviceLight.PulseScript(lightSnapshot+"\\nEOF"));
             var facts=DeviceInventory.Parse(Fixture());
             Require(facts.Bound&&facts.Ready&&facts.LedReady&&facts.TtsReady,"условия аппаратного профиля");
             var unknown=DeviceInventory.Parse("model=Some other model\nsku=YNDX-00026");

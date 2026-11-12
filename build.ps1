@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([switch]$Test)
+param([switch]$Test, [switch]$ExtendedTest)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $root = $PSScriptRoot
@@ -47,9 +47,14 @@ try {
     [IO.File]::WriteAllText($hashPath,(Get-FileHash $zip -Algorithm SHA256).Hash,[Text.Encoding]::ASCII)
     $setup = Join-Path $stage 'StantsiyaDesk-Setup-x64.exe'
     Compile $setup ($shared + @('System.IO.Compression','Microsoft.CSharp')) @(('/resource:' + $zip + ',payload.zip'),('/resource:' + $hashPath + ',payload.sha256')) @((Join-Path $root 'setup\Installer.cs'),$productInfo)
-    if ($Test) {
+    if ($Test -or $ExtendedTest) {
         RunCheck $app '--self-test' (Join-Path $dist 'tests.txt')
         RunCheck $setup '--test-lifecycle' (Join-Path $dist 'installer-tests.txt')
+    }
+    if ($ExtendedTest) {
+        $shell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+        & $shell -NoProfile -STA -ExecutionPolicy Bypass -File (Join-Path $root 'tests\run-checks.ps1') -ApplicationPath $app
+        if ($LASTEXITCODE -ne 0) { throw 'Extended checks failed.' }
     }
     Copy-Item -LiteralPath $setup -Destination $dist -Force
     Copy-Item -LiteralPath $zip -Destination (Join-Path $dist 'StantsiyaDesk-portable-x64.zip') -Force

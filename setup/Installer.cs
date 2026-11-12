@@ -18,7 +18,7 @@ internal sealed class Installation
     const string Product="Пульт Станции";
     const string AppName="StantsiyaDesk.exe";
     const string AppId="StantsiyaDesk";
-    const string Version="1.2.2";
+    const string Version="1.3.0";
     readonly string root, startMenu, uninstallKey, runKey;
     public Installation(string root,string startMenu,string uninstallKey,string runKey)
     {
@@ -118,8 +118,10 @@ internal sealed class Installation
         string profiles=Path.Combine(root,"Data","profiles");
         if(Directory.Exists(profiles))foreach(var dir in Directory.GetDirectories(profiles)) {
             CheckPath(dir);string vault=Path.Combine(dir,"vault");if(!Directory.Exists(vault))continue;CheckPath(vault);
-            string token=Hash(Encoding.UTF8.GetBytes("agent.haToken")).ToUpperInvariant()+".bin";
-            File.Delete(Path.Combine(vault,token));File.Delete(Path.Combine(vault,token+".bak"));
+            foreach(string keyName in new[]{"agent.haToken","agent.haToken2","agent.haToken3"}) {
+                string token=Hash(Encoding.UTF8.GetBytes(keyName)).ToUpperInvariant()+".bin";
+                File.Delete(Path.Combine(vault,token));File.Delete(Path.Combine(vault,token+".bak"));
+            }
         }
         File.Delete(Path.Combine(startMenu,Product+".lnk"));
         if(Directory.Exists(startMenu)&&!Directory.EnumerateFileSystemEntries(startMenu).Any()) Directory.Delete(startMenu);
@@ -292,11 +294,13 @@ internal sealed class Installation
             File.WriteAllText(app,"damaged");inst.Install();
             if(new FileInfo(app).Length<32768||File.ReadAllText(Path.Combine(data,"keep"))!="sample")throw new Exception("Повторная установка не восстановила программу или потеряла данные.");
             string vault=Path.Combine(data,"profiles",Guid.NewGuid().ToString("N"),"vault");Directory.CreateDirectory(vault);
-            string token=Path.Combine(vault,Hash(Encoding.UTF8.GetBytes("agent.haToken")).ToUpperInvariant()+".bin");File.WriteAllText(token,"fixture");
+            string token=Path.Combine(vault,Hash(Encoding.UTF8.GetBytes("agent.haToken")).ToUpperInvariant()+".bin");File.WriteAllText(token,"fixture");File.WriteAllText(token+".bak","fixture");
+            string alternate=Path.Combine(vault,Hash(Encoding.UTF8.GetBytes("agent.haToken2")).ToUpperInvariant()+".bin");File.WriteAllText(alternate,"fixture");File.WriteAllText(alternate+".bak","fixture");
+            string third=Path.Combine(vault,Hash(Encoding.UTF8.GetBytes("agent.haToken3")).ToUpperInvariant()+".bin");File.WriteAllText(third,"fixture");File.WriteAllText(third+".bak","fixture");
             inst.Remove(false);
             using(var key=Registry.CurrentUser.OpenSubKey(registry+@"\Run"))
                 if(key!=null && key.GetValue(AppId)!=null)throw new Exception("Автозапуск остался включён.");
-            if(File.Exists(app)||File.Exists(token)||!File.Exists(Path.Combine(data,"keep")))throw new Exception("Ошибка удаления с сохранением профилей.");
+            if(File.Exists(app)||File.Exists(token)||File.Exists(token+".bak")||File.Exists(alternate)||File.Exists(alternate+".bak")||File.Exists(third)||File.Exists(third+".bak")||!File.Exists(Path.Combine(data,"keep")))throw new Exception("Ошибка удаления с сохранением профилей.");
             inst.Install();inst.Remove(true);
             if(Directory.Exists(data))throw new Exception("Каталог данных не удалён.");
             File.WriteAllText(report,"OK   Установка, восстановление файлов, ярлык, повторная установка, сохранение профилей, удаление сопряжения, автозапуска и полное удаление.",new UTF8Encoding(false));

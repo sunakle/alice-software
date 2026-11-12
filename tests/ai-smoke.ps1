@@ -9,12 +9,47 @@ try {
     $binary = Join-Path $testDir 'AiSmoke.exe'
     $fixture = @'
 using System;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using AliceDesk;
 namespace AliceDesk {
     internal static class Runner {
+        static void CheckBridgePlan(AiPage page, Profile profile) {
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            Type type = typeof(AiPage);
+            var voice = (ComboBox)type.GetField("voice", flags).GetValue(page);
+            var host = (ComboBox)type.GetField("bridgeHost", flags).GetValue(page);
+            var baseField = (TextBox)type.GetField("hostBase", flags).GetValue(page);
+            var save = type.GetMethod("SaveVoice", flags);
+            voice.SelectedIndex = 1;
+            host.SelectedIndex = 0;
+            baseField.Text = "";
+            bool rejected = false;
+            try { save.Invoke(page, null); }
+            catch (TargetInvocationException ex) {
+                if (!(ex.InnerException is AiFailure) ||
+                    ex.InnerException.Message.IndexOf("localhost", StringComparison.OrdinalIgnoreCase) < 0)
+                    throw;
+                rejected = true;
+            }
+            if (!rejected || profile.Get("ai.voice", "stock") != "stock")
+                throw new Exception("Localhost on the speaker must be rejected before saving the bridge plan.");
+
+            host.SelectedIndex = 1;
+            save.Invoke(page, null);
+            if (profile.Get("ai.voice") != "bridge" || profile.Get("ai.bridge.host") != "server" ||
+                profile.Get("ai.bridge.base") != "")
+                throw new Exception("A bridge on the server must accept the local endpoint fallback.");
+
+            host.SelectedIndex = 0;
+            baseField.Text = "http://192.168.1.22:11434";
+            save.Invoke(page, null);
+            if (profile.Get("ai.bridge.host") != "speaker" ||
+                profile.Get("ai.bridge.base") != "http://192.168.1.22:11434")
+                throw new Exception("A speaker bridge must accept a LAN endpoint.");
+        }
         [STAThread] static int Main(string[] args) {
             try {
             AiPage.SelfTest();
@@ -22,7 +57,11 @@ namespace AliceDesk {
             HaTlsChecks.Run();
             Application.EnableVisualStyles();
             var store = new ProfileStore(args[0]);
-            using (var page = new AiPage(store.Active)) { page.CreateControl(); page.PerformLayout(); }
+            store.Active.Set("ai.provider", "ollama");
+            store.Active.Set("ai.ollama.base", "http://127.0.0.1:11434");
+            using (var page = new AiPage(store.Active)) {
+                page.CreateControl(); page.PerformLayout(); CheckBridgePlan(page, store.Active);
+            }
             Console.WriteLine("OK  AI fixtures, loopback HTTP and HTTPS/SNI, HA route selection, Windows controls, Quasar config");
             return 0;
             } catch(Exception ex) { Console.Error.WriteLine(ex); return 1; }

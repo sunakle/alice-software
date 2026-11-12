@@ -23,12 +23,32 @@ namespace AliceDesk
         public int schema {get;set;} public Dictionary<string,string> documentation {get;set;} public Feature[] features {get;set;}
         internal static Catalog Load()
         {
-            using(var stream=Assembly.GetExecutingAssembly().GetManifestResourceStream("features.json"))
-            using(var rdr=new StreamReader(stream,Encoding.UTF8)) {
-                var c=new JavaScriptSerializer().Deserialize<Catalog>(rdr.ReadToEnd());
-                if(c.schema!=1 || c.features==null || c.features.Length<30 || c.features.GroupBy(f=>f.id).Any(g=>g.Count()!=1))
-                    throw new InvalidDataException("Неправильный каталог расширений.");
+            using(var stream=Assembly.GetExecutingAssembly().GetManifestResourceStream("features.json")) {
+                if(stream==null)throw new InvalidDataException("Каталог расширений отсутствует в приложении.");
+                using(var rdr=new StreamReader(stream,Encoding.UTF8)) return Parse(rdr.ReadToEnd());
+            }
+        }
+        internal static Catalog Parse(string json)
+        {
+            try {
+                var c=new JavaScriptSerializer().Deserialize<Catalog>(json);
+                if(c==null || c.schema!=1 || c.documentation==null ||
+                   !c.documentation.ContainsKey("defaultSpace") || !c.documentation.ContainsKey("materialLicense") ||
+                   c.features==null || c.features.Length<30 ||
+                   c.features.Any(f=>f==null || String.IsNullOrWhiteSpace(f.id) || String.IsNullOrWhiteSpace(f.name)) ||
+                   c.features.GroupBy(f=>f.id).Any(g=>g.Count()!=1))
+                    throw new InvalidDataException("Каталог расширений повреждён или имеет неверный формат.");
                 return c;
+            } catch(ArgumentException ex) {
+                throw new InvalidDataException("Не удалось прочитать каталог расширений.",ex);
+            } catch(InvalidOperationException ex) {
+                throw new InvalidDataException("Не удалось прочитать каталог расширений.",ex);
+            } catch(FormatException ex) {
+                throw new InvalidDataException("Не удалось прочитать каталог расширений.",ex);
+            } catch(OverflowException ex) {
+                throw new InvalidDataException("Не удалось прочитать каталог расширений.",ex);
+            } catch(InvalidCastException ex) {
+                throw new InvalidDataException("Не удалось прочитать каталог расширений.",ex);
             }
         }
     }
@@ -38,11 +58,14 @@ namespace AliceDesk
         readonly ListBox features=new ListBox();
         readonly TextBox info=new TextBox {Multiline=true,ScrollBars=ScrollBars.Vertical,AccessibleName="Описание выбранной возможности"};
         readonly TextBox find=new TextBox();
-        readonly Catalog catalog=Catalog.Load();
+        readonly Catalog catalog;
+        readonly string catalogError;
         readonly FlowLayoutPanel clock=new FlowLayoutPanel();
         internal ExtensionsView(Profile profile)
         {
             this.profile=profile; Dock=DockStyle.Fill;Padding=new Padding(12,9,12,12);
+            try { catalog=Catalog.Load(); }
+            catch(InvalidDataException ex) { catalogError=ex.Message; }
             var head=new FlowLayoutPanel{Dock=DockStyle.Top,AutoSize=true,WrapContents=true,Padding=new Padding(1,2,1,9)};
             head.Controls.Add(new Label{Text="Поиск по каталогу",AutoSize=true,Margin=new Padding(3,7,6,3)});
             find.Width=235;head.Controls.Add(find);
@@ -69,11 +92,13 @@ namespace AliceDesk
         }
         void Filter()
         {
+            if(catalog==null) { features.Items.Clear();clock.Visible=false;info.Text=catalogError;return; }
             features.Items.Clear();features.Items.AddRange(catalog.features.Where(f=>(f.name+" "+f.host+" "+f.reference).IndexOf(find.Text.Trim(),StringComparison.CurrentCultureIgnoreCase)>=0).ToArray());
             if(features.Items.Count!=0)features.SelectedIndex=0;else RefreshDetails();
         }
         void RefreshDetails()
         {
+            if(catalog==null){clock.Visible=false;info.Text=catalogError;return;}
             var f=features.SelectedItem as Feature;clock.Visible=f!=null&&f.id=="clock";
             if(f==null){info.Text="Совпадений нет.";return;}
             var check=profile.Get("local.device.checked");var sku=profile.Get("local.device.sku","не определён");var build=profile.Get("local.device.build","не определена");

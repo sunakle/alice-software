@@ -5,13 +5,22 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
 namespace AliceDesk {
+    internal sealed class PendingHomeAck {
+        public string origin {get;set;}
+        public string id {get;set;}
+        public string result {get;set;}
+    }
+
     public sealed class AgentPage : UserControl {
         const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
         const string TokenKey = "agent.haToken";
+        const string AlternateTokenKey = "agent.haToken2";
+        const string SecondAlternateTokenKey = "agent.haToken3";
         readonly Profile profile;
         readonly ListBox definitions;
         readonly TextBox id, phrases, target, manual, server, token, pair, journal;
@@ -21,8 +30,9 @@ namespace AliceDesk {
         List<DeskAction> actions;
         MediaHome home;
         CancellationTokenSource session;
+        CancellationTokenSource connecting;
         bool polling;
-        string lastState, pendingId, pendingResult;
+        string lastState;
         DateTime retryAt;
         public AgentPage(Profile p) {
             Dock=DockStyle.Fill; profile=p;
@@ -78,7 +88,7 @@ namespace AliceDesk {
             MediaUi.Line(b,"Команды из Home Assistant",true);
             MediaUi.Line(b,"ПК сам подключается по HTTPS к выбранному домашнему серверу. Нужны действительный сертификат сервера и токен HA. Оба устройства должны работать. Агенту не нужен входящий порт.");
             MediaUi.Line(b,"Адрес домашнего сервера (например, https://ha.example.org:8123)");
-            server=MediaUi.Field(b,profile.Get("local.agent.haOrigin",""),395);
+            server=MediaUi.Field(b,ActiveOrigin(),395);
             MediaUi.Line(b,"Домашний интерфейс Windows, через который доступен HA");
             row=MediaUi.Row(b); network=new SettingsCombo {Width=320, DropDownStyle=ComboBoxStyle.DropDownList};
             row.Controls.Add(network);
@@ -102,18 +112,18 @@ namespace AliceDesk {
             definitions.SelectedIndexChanged+=delegate { Edit(); };
             RefreshList(null);
             timer.Tick+=async delegate { await Tick(); };
-            if (profile.Get("local.agent.haEnabled","")=="1") {
+            if (ActiveEnabled()) {
                 try {
-                    var root=MediaHome.Address(profile.Get("local.agent.haOrigin","")); var key=profile.Secret(TokenKey);
+                    var root=MediaHome.Address(ActiveOrigin()); var key=profile.Secret(ActiveTokenKey());
                     if (String.IsNullOrEmpty(key)) throw new InvalidOperationException("Нет токена. Подключите HA заново.");
-                    session=new CancellationTokenSource(); home=new MediaHome(root,key,profile.Get("local.agent.haNetwork",""));
+                    session=new CancellationTokenSource(); home=new MediaHome(root,key,ActiveNetwork());
                     netStatus.Text="Проверяю сохранённое подключение…"; timer.Start();
                 } catch (Exception ex) { netStatus.Text=ex.Message; }
             }
         }
         void LoadNetworks() {
             var selected=network.SelectedItem as MediaHome.Adapter;
-            string preferred=selected==null ? profile.Get("local.agent.haNetwork","") : selected.Id;
+            string preferred=selected==null ? ActiveNetwork() : selected.Id;
             network.Items.Clear();
             foreach(var adapter in MediaHome.Adapters()) {
                 int index=network.Items.Add(adapter);
@@ -184,30 +194,103 @@ namespace AliceDesk {
             var old=session; session=null;
             if (old!=null) { old.Cancel(); old.Dispose(); }
             if (home!=null) { home.Dispose(); home=null; }
-            lastState=pendingId=pendingResult=null; retryAt=DateTime.MinValue;
+            lastState=null; retryAt=DateTime.MinValue;
+        }
+        bool UseNewConnection() {
+            // Older releases ignore "v2", but their revoke and reconnect actions
+            // replace it. Bind the route to the current pairing ID as well.
+            string pairId=profile.Get("local.agent.pair","");
+            return pairId.Length>0 && profile.Get("local.agent.haV2","")=="1" &&
+                profile.Get("local.agent.haEnabled","")=="v2" &&
+                profile.Get("local.agent.haV2Pair","")==pairId;
+        }
+        string ActiveOrigin() {
+            return profile.Get(UseNewConnection() ? "local.agent.haV2Origin" : "local.agent.haOrigin","");
+        }
+        string ActiveNetwork() {
+            return profile.Get(UseNewConnection() ? "local.agent.haV2Network" : "local.agent.haNetwork","");
+        }
+        bool ActiveEnabled() {
+            return profile.Get(UseNewConnection() ? "local.agent.haV2Enabled" : "local.agent.haEnabled","")=="1";
+        }
+        string ActiveTokenKey() {
+            if(!UseNewConnection())return TokenKey;
+            string slot=profile.Get("local.agent.haV2TokenSlot","");
+            if(slot=="2")return AlternateTokenKey;
+            if(slot=="3")return SecondAlternateTokenKey;
+            throw new InvalidDataException("Повреждена привязка токена Home Assistant в профиле.");
+        }
+        void CancelConnectionCheck() {
+            var previous=connecting;
+            connecting=null;
+            if(previous!=null)previous.Cancel();
+        }
+        void SaveVerifiedConnection(Uri root, string adapterId, string credential, string activeKey) {
+            // The current route continues to use its existing slot until all new
+            // settings and the inactive credential have been written successfully.
+            string nextKey=activeKey==AlternateTokenKey ? SecondAlternateTokenKey : AlternateTokenKey;
+            string pairId=profile.Get("local.agent.pair","");
+            if(pairId.Length==0)throw new InvalidDataException("Нет идентификатора адресата Home Assistant.");
+            profile.PutSecret(nextKey,credential);
+            profile.SetMany(new Dictionary<string,string> {
+                {"local.agent.haV2","1"},{"local.agent.haV2Origin",root.AbsoluteUri},
+                {"local.agent.haV2Network",adapterId},{"local.agent.haV2Enabled","1"},
+                {"local.agent.haV2TokenSlot",nextKey==AlternateTokenKey ? "2" : "3"},{"local.agent.haV2Pair",pairId},
+                // Legacy versions only know the original key. Never let them send
+                // that credential to the new origin after a downgrade.
+                {"local.agent.haOrigin",null},{"local.agent.haNetwork",null},{"local.agent.haEnabled","v2"}
+            });
+        }
+        List<PendingHomeAck> PendingAcks() {
+            string value=profile.Get("local.agent.pendingAcks","");
+            if(value.Length==0)return new List<PendingHomeAck>();
+            var entries=MediaCommands.Serializer.Deserialize<List<PendingHomeAck>>(value);
+            if(entries==null || entries.Any(item=>item==null ||
+                !Regex.IsMatch(item.id??"", @"\A[A-Za-z0-9_-]{8,64}\z") ||
+                (item.result!="ok" && item.result!="denied" && item.result!="unknown") ||
+                !ValidAckOrigin(item.origin)))
+                throw new InvalidDataException("Повреждён журнал ответов Home Assistant.");
+            return entries;
+        }
+        static bool ValidAckOrigin(string origin) {
+            try {return MediaHome.Address(origin).AbsoluteUri==origin;}
+            catch(InvalidOperationException) {return false;}
+        }
+        void RemovePendingAck(string origin, string id) {
+            var entries=PendingAcks();
+            entries.RemoveAll(item=>item.origin==origin && item.id==id);
+            profile.Set("local.agent.pendingAcks",entries.Count==0 ? null : MediaCommands.Serializer.Serialize(entries));
         }
         async Task Connect() {
-            CancellationTokenSource lease=null; MediaHome candidate=null;
+            CancellationTokenSource check=null, newSession=null; MediaHome candidate=null;
             try {
+                CancelConnectionCheck();
                 Uri root=MediaHome.Address(server.Text.Trim());
                 var adapter=network.SelectedItem as MediaHome.Adapter;
                 if(adapter==null)throw new InvalidOperationException("Выберите интерфейс Windows для подключения к HA.");
-                string saved=profile.Get("local.agent.haOrigin",""), entered=token.Text.Trim();
-                if (entered.Length==0 && saved==root.AbsoluteUri) entered=profile.Secret(TokenKey);
+                string saved=ActiveOrigin(), entered=token.Text.Trim();
+                string activeKey=ActiveTokenKey();
+                if (entered.Length==0 && saved==root.AbsoluteUri) entered=profile.Secret(activeKey);
                 if (String.IsNullOrEmpty(entered)) throw new InvalidOperationException("Введите отдельный токен для этого адреса.");
-                Stop(); profile.Set("local.agent.haEnabled",""); lease=session=new CancellationTokenSource();
-                var ct=lease.Token;
+                check=new CancellationTokenSource();
+                connecting=check;
                 netStatus.Text="Проверяю защищённое соединение и два помощника…";
-                candidate=new MediaHome(root,entered,adapter.Id); await candidate.Verify(ct);
-                if (lease!=session || IsDisposed) return;
-                // Clear identity binding before replacing a credential. A failure between writes leaves no enabled route.
-                profile.Set("local.agent.haOrigin",""); profile.PutSecret(TokenKey,entered);
-                profile.Set("local.agent.haOrigin",root.AbsoluteUri); profile.Set("local.agent.haNetwork",adapter.Id);
-                profile.Set("local.agent.haEnabled","1");
+                candidate=new MediaHome(root,entered,adapter.Id); await candidate.Verify(check.Token);
+                if (check!=connecting || check.IsCancellationRequested || IsDisposed) return;
+
+                SaveVerifiedConnection(root,adapter.Id,entered,activeKey);
+                newSession=new CancellationTokenSource();
+                Stop();
+                session=newSession; newSession=null;
                 home=candidate; candidate=null; token.Clear(); netStatus.Text="Подключено. Ожидаю команду через Home Assistant."; timer.Start();
             } catch (Exception ex) {
-                if (!IsDisposed && (lease==null || lease==session)) netStatus.Text="Подключение не выполнено. "+ex.Message;
-            } finally { if (candidate!=null) candidate.Dispose(); }
+                if (!IsDisposed && (check==null || check==connecting)) netStatus.Text="Подключение не выполнено. "+ex.Message;
+            } finally {
+                if(check==connecting)connecting=null;
+                if(check!=null)check.Dispose();
+                if(newSession!=null)newSession.Dispose();
+                if(candidate!=null)candidate.Dispose();
+            }
         }
         async Task Tick() {
             var lease=session; var conn=home;
@@ -215,9 +298,12 @@ namespace AliceDesk {
             var ct=lease.Token; polling=true;
             try {
                 ct.ThrowIfCancellationRequested();
-                if (pendingId!=null) {
-                    await conn.Ack(pendingId,pendingResult,ct); ct.ThrowIfCancellationRequested();
-                    pendingId=pendingResult=null;
+                string origin=ActiveOrigin();
+                var outstanding=PendingAcks().FirstOrDefault(item=>item.origin==origin);
+                if(outstanding!=null) {
+                    await conn.Ack(outstanding.id,outstanding.result,ct);
+                    if(session!=lease || ct.IsCancellationRequested || IsDisposed)return;
+                    RemovePendingAck(outstanding.origin,outstanding.id);
                 }
                 string state=await conn.ReadCommand(ct);
                 if (session!=lease || ct.IsCancellationRequested || IsDisposed) return;
@@ -228,26 +314,46 @@ namespace AliceDesk {
                 bool duplicate;
                 string recent=MediaHome.Remember(profile.Get("local.agent.haSeen",""),ev,now,out duplicate);
                 if (duplicate) return;
-                // Persist before starting an application, including across agent restarts.
-                profile.Set("local.agent.haSeen",recent);
-                pendingId=ev;
-                try { Execute(cmd); pendingResult="ok"; netStatus.Text="Windows приняла действие «"+cmd+"»."; }
-                catch (Exception ex) { pendingResult="denied"; netStatus.Text="Команда отклонена. "+ex.Message; Log(netStatus.Text); }
-                await conn.Ack(ev,pendingResult,ct);
-                if (session==lease) pendingId=pendingResult=null;
+                // Reserve the event and record an unknown result in the same atomic write.
+                // If the process stops during the action, restart reports uncertainty
+                // instead of executing it again or claiming it succeeded.
+                var entries=PendingAcks();
+                if(entries.Count>=512)throw new InvalidOperationException(
+                    "Очередь ответов HA заполнена. Подключите прежние серверы для отправки ответов или отзовите доступ.");
+                var pending=new PendingHomeAck {origin=origin,id=ev,result="unknown"};
+                entries.Add(pending);
+                string journal;
+                try { journal=MediaCommands.Serializer.Serialize(entries); }
+                catch(InvalidOperationException) {
+                    throw new InvalidOperationException("Очередь ответов HA заполнена. Подключите прежние серверы для отправки ответов или отзовите доступ.");
+                }
+                profile.SetMany(new Dictionary<string,string> {
+                    {"local.agent.haSeen",recent},
+                    {"local.agent.pendingAcks",journal}
+                });
+                try { Execute(cmd); pending.result="ok"; netStatus.Text="Windows приняла действие «"+cmd+"»."; }
+                catch (Exception ex) { pending.result="denied"; netStatus.Text="Команда отклонена. "+ex.Message; Log(netStatus.Text); }
+                profile.Set("local.agent.pendingAcks",MediaCommands.Serializer.Serialize(entries));
+                await conn.Ack(ev,pending.result,ct);
+                if(session==lease && !ct.IsCancellationRequested && !IsDisposed)RemovePendingAck(origin,ev);
             } catch (Exception ex) {
                 if (session==lease && !IsDisposed) { netStatus.Text="HA недоступен. "+ex.Message+" Повторю через 10 секунд."; retryAt=DateTime.UtcNow.AddSeconds(10); lastState=null; }
             } finally { polling=false; }
         }
         void Revoke() {
-            Stop(); profile.Set("local.agent.haEnabled",""); profile.Set("local.agent.haOrigin","");
-            profile.Set("local.agent.haNetwork","");
-            profile.PutSecret(TokenKey,""); profile.Set("local.agent.haSeen","");
+            CancelConnectionCheck();
+            Stop(); profile.SetMany(new Dictionary<string,string> {
+                {"local.agent.haEnabled",null},{"local.agent.haOrigin",null},{"local.agent.haNetwork",null},
+                {"local.agent.haV2",null},{"local.agent.haV2Enabled",null},{"local.agent.haV2Origin",null},
+                {"local.agent.haV2Network",null},{"local.agent.haV2TokenSlot",null},{"local.agent.haV2Pair",null},
+                {"local.agent.haSeen",null},{"local.agent.pendingAcks",null}
+            });
+            profile.PutSecret(TokenKey,""); profile.PutSecret(AlternateTokenKey,""); profile.PutSecret(SecondAlternateTokenKey,"");
             pair.Text=Guid.NewGuid().ToString("N"); profile.Set("local.agent.pair",pair.Text); token.Clear();
             netStatus.Text="Агент отключён. Прежний адресат отозван. Удалите токен в профиле пользователя Home Assistant.";
         }
         protected override void Dispose(bool disposing) {
-            if (disposing) { Stop(); timer.Dispose(); }
+            if (disposing) { CancelConnectionCheck(); Stop(); timer.Dispose(); }
             base.Dispose(disposing);
         }
     }

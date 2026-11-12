@@ -90,7 +90,7 @@ namespace AliceDesk
         {
             if (voice.SelectedIndex == 1)
             {
-                if (hostBase.Text.Trim().Length > 0) BridgeBase();
+                BridgeBase();
                 ValidPrefix(trigger.Text);
                 if (!String.IsNullOrWhiteSpace(models.Text)) SaveConfig(Endpoint());
                 profile.Set("ai.bridge.host", bridgeHost.SelectedIndex == 1 ? "server" : "speaker");

@@ -35,6 +35,8 @@ script:
                 Windows приняла команду открыть Chrome.
               {% elif states('input_text.stantsiya_desk_reply') == request_id ~ '|denied' %}
                 Агент отклонил команду. Проверь разрешение Chrome на компьютере.
+              {% elif states('input_text.stantsiya_desk_reply') == request_id ~ '|unknown' %}
+                Агент перезапустился во время выполнения. Проверь результат на компьютере.
               {% else %}
                 Нет подтверждения от компьютера. Проверь, включён ли он и подключён ли агент.
               {% endif %}

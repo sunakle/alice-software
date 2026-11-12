@@ -59,7 +59,7 @@ namespace AliceDesk
         }
         internal static bool Shareable(string key)
         {
-            return Regex.IsMatch(key, @"\A(?:station\.(?:expected|address|transport|sshPort|adbPort)|agent\.actions|media\.output|ai\.(?:provider|custom|voice|bridge\.(?:base|host|prefix|route)|(?:deepseek|compatible|ollama|lmstudio|local|p[0-9a-f]{32})\.(?:base|model|name)))\z");
+            return Regex.IsMatch(key, @"\A(?:station\.(?:expected|address|transport|sshPort|adbPort)|agent\.actions|media\.output|ai\.(?:provider|custom|voice|windowsVoice\.(?:id|rate|volume|auto)|bridge\.(?:base|host|prefix|route)|(?:deepseek|compatible|ollama|lmstudio|local|p[0-9a-f]{32})\.(?:base|model|name)))\z");
         }
         internal static SettingsFile Validate(SettingsFile file, bool portable)
         {
@@ -139,10 +139,12 @@ namespace AliceDesk
                 string path = SecretFile(key);
                 if (!File.Exists(path)) return "";
                 try {
-                    byte[] bytes = ProtectedData.Unprotect(Convert.FromBase64String(File.ReadAllText(path)),
+                    byte[] bytes = ProtectedData.Unprotect(Convert.FromBase64String(File.ReadAllText(path, Disk.Utf8)),
                         Disk.Utf8.GetBytes(Id + "|" + key), DataProtectionScope.CurrentUser);
                     try { return Disk.Utf8.GetString(bytes); } finally { Array.Clear(bytes, 0, bytes.Length); }
                 } catch (CryptographicException) { throw new InvalidDataException("Windows не смогла расшифровать ключ этого профиля. Сохрани ключ заново."); }
+                  catch (FormatException) { throw new InvalidDataException("Файл ключа повреждён. Сохрани ключ заново."); }
+                  catch (DecoderFallbackException) { throw new InvalidDataException("Файл ключа повреждён. Сохрани ключ заново."); }
             }
         }
         public void PutSecret(string key, string value)

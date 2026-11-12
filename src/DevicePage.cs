@@ -185,7 +185,7 @@ namespace AliceDesk
                         log("Изменения с предыдущего снимка:\r\n"+string.Join("\r\n",delta));
                     }
                     UI(()=>{
-                        if(c.IsCancellationRequested)return;
+                        c.ThrowIfCancellationRequested();
                         var snapshot=new Dictionary<string,string> {
                             {"local.device.report",current},{"local.device.checked",now},{"local.device.transport",adb?"ADB":"SSH"},
                             {"local.device.available.tts",!adb && data.TtsReady?"1":"0"},{"local.device.available.led",!adb && data.LedReady?"1":"0"},
@@ -196,8 +196,8 @@ namespace AliceDesk
                             foreach(string test in new[]{"tts","led","tone","radio","wav"})snapshot["local.device.verified."+test]=null;
                         profile.SetMany(snapshot);
                         live=tr;facts=data;
+                        Notice(data.Bound?"Станция опрошена. В отчёте указано, какие признаки удалось прочитать.":"Чтение завершено. Для чувствительных операций не хватает признаков модели, прошивки или экземпляра.");
                     });
-                    Notice(data.Bound?"Станция опрошена. В отчёте указано, какие признаки удалось прочитать.":"Чтение завершено. Для чувствительных операций не хватает признаков модели, прошивки или экземпляра.");
                 }catch(Exception e){log("Проверка остановилась — "+Message(e));throw;}
             });
         }
