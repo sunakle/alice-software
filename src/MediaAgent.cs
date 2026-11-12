@@ -135,6 +135,7 @@ namespace AliceDesk {
                 f.Controls.Add(viewer);
                 var folder=new Button { Text="Открыть папку с примерами YAML",Dock=DockStyle.Bottom,Height=34 };
                 folder.Click+=delegate { Guard(delegate { MediaUi.Open(docs); }); }; f.Controls.Add(folder);
+                Shell.Style(f);
                 f.ShowDialog(this);
             }
         }

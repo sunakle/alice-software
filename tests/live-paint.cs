@@ -79,6 +79,23 @@ internal static class LivePaint
             stage, control.GetType().Name,control.AccessibleName, a.X,a.Y, expected.ToArgb() & 0xffffff, actual.ToArgb() & 0xffffff);
     }
 
+    static void CapturePage(Form shell, string stage, string output)
+    {
+        if (output == null) return;
+        var screen = shell.RectangleToScreen(shell.ClientRectangle);
+        screen.Inflate(-9,-9);
+        var wait = Stopwatch.StartNew();
+        while (!IsUnobscured(shell,screen)) {
+            if (wait.ElapsedMilliseconds >= 2500) throw new Exception("The window is obscured or the desktop is locked. Capture discarded.");
+            Settle();
+        }
+        using (var image = new Bitmap(screen.Width,screen.Height)) {
+            using (var g = Graphics.FromImage(image)) g.CopyFromScreen(screen.Location,Point.Empty,screen.Size);
+            if (!IsUnobscured(shell,screen)) throw new Exception("The window was obscured during capture. Capture discarded.");
+            image.Save(Path.Combine(output,stage+".png"),ImageFormat.Png);
+        }
+    }
+
     static void Inspect(Form shell, string stage, string output, bool seed)
     {
         var controls = Descendants(shell).Where(c => c.Visible &&
@@ -102,7 +119,7 @@ internal static class LivePaint
             Console.WriteLine("{0}: unexpected horizontal scrollbar (client {1}, sheet {2}, display {3}).",
                 stage, home.ClientSize, home.Controls[0].Bounds, home.DisplayRectangle);
         }
-        // Crop off the rounded window edges, leaving only fresh fixture data.
+        // Capture the application client area without the system window border.
         var screen = shell.RectangleToScreen(shell.ClientRectangle);
         screen.Inflate(-9,-9);
         var wait = Stopwatch.StartNew();
@@ -149,7 +166,15 @@ internal static class LivePaint
                     Settle();
                     string output=args.Length>2?args[2]:null;
                     Inspect(shell,"overview",output,false);
-                    PageButton(shell,"music").PerformClick(); Settle();
+                    var heading = (Label)type.GetField("title",Members).GetValue(shell);
+                    foreach (var page in new[] {"music","ai","station","extensions","recovery","agent","music"}) {
+                        var button = PageButton(shell,page);
+                        button.PerformClick();
+                        Settle();
+                        if (heading.Text != button.Text)
+                            throw new Exception("The page did not open: " + page);
+                        CapturePage(shell,page,output);
+                    }
                     shell.Width=Math.Max(shell.MinimumSize.Width,shell.Width-54);
                     shell.Height=Math.Max(shell.MinimumSize.Height,shell.Height-24);
                     shell.Location=new Point(Math.Min(shell.Left+12,area.Right-shell.Width),Math.Min(shell.Top+12,area.Bottom-shell.Height));

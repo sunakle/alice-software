@@ -9,12 +9,12 @@ namespace AliceDesk
 {
     internal static class BigSurTheme
     {
-        internal static readonly Color Canvas = Color.FromArgb(246,246,249);
-        internal static readonly Color Surface = Color.White;
-        internal static readonly Color Ink = Color.FromArgb(36,36,43);
-        internal static readonly Color Muted = Color.FromArgb(85,86,99);
-        internal static readonly Color Line = Color.FromArgb(209,210,218);
-        internal static readonly Color Blue = Color.FromArgb(0,103,213);
+        internal static readonly Color Canvas = Color.FromArgb(24,25,33);
+        internal static readonly Color Surface = Color.FromArgb(35,37,48);
+        internal static readonly Color Ink = Color.FromArgb(235,236,245);
+        internal static readonly Color Muted = Color.FromArgb(167,170,190);
+        internal static readonly Color Line = Color.FromArgb(65,68,84);
+        internal static readonly Color Blue = Color.FromArgb(103,132,240);
 
         internal static GraphicsPath Rounded(RectangleF r, float radius)
         {
@@ -44,7 +44,7 @@ namespace AliceDesk
             var box=root as TextBoxBase;
             if(box!=null) {
                 box.ForeColor=Ink;
-                box.BackColor=box.ReadOnly ? Color.FromArgb(248,249,251) : Surface;
+                box.BackColor=box.ReadOnly ? Color.FromArgb(41,43,55) : Surface;
                 if(!(box.Parent is FieldFrame) && (box.Parent is FlowLayoutPanel || box.Parent is TableLayoutPanel)) {
                     FieldFrame.Wrap(box);
                 }
@@ -61,8 +61,11 @@ namespace AliceDesk
             } else if(root is UserControl || root is Form) {
                 root.BackColor=Canvas; root.ForeColor=Ink;
             } else if(root is Label) {
-                if(root.BackColor.GetBrightness()>.5f || root.BackColor==Color.Transparent)
+                if(root.BackColor == Color.Transparent || root.BackColor.GetBrightness()>.5f || root.ForeColor.GetBrightness()<.5f)
                     root.ForeColor=root.Font.Bold ? Ink : Muted;
+                if(root.BackColor != Color.Transparent && root.BackColor.GetBrightness()>.5f) root.BackColor=Canvas;
+            } else if(root is Panel && !(root is FieldFrame) && root.BackColor != Color.Transparent && root.BackColor.GetBrightness()>.5f) {
+                root.BackColor=Canvas; root.ForeColor=Ink;
             }
             var list=root as ListBox;
             if(list!=null && list.DrawMode==DrawMode.Normal) {
@@ -79,12 +82,12 @@ namespace AliceDesk
             var list=(ListBox)sender;
             if(e.Index<0 || e.Index>=list.Items.Count)return;
             bool selected=(e.State & DrawItemState.Selected)!=0;
-            Color bg=selected ? Color.FromArgb(225,237,255) : Surface;
+            Color bg=selected ? Color.FromArgb(60,66,98) : Surface;
             using(var b=new SolidBrush(Surface)) e.Graphics.FillRectangle(b,e.Bounds);
             var r=Rectangle.Inflate(e.Bounds,-2,-1);
             Box(e.Graphics,r,5,bg,Color.Transparent);
             var text=new Rectangle(r.X+7,r.Y,Math.Max(0,r.Width-13),r.Height);
-            TextRenderer.DrawText(e.Graphics,list.GetItemText(list.Items[e.Index]),e.Font,text,selected?Color.FromArgb(12,69,132):Ink,
+            TextRenderer.DrawText(e.Graphics,list.GetItemText(list.Items[e.Index]),e.Font,text,Ink,
                 TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix|TextFormatFlags.SingleLine);
             if((e.State & DrawItemState.Focus)!=0)ControlPaint.DrawFocusRectangle(e.Graphics,r);
         }
@@ -119,10 +122,10 @@ namespace AliceDesk
             var g=e.Graphics;
             g.Clear(Parent==null?BigSurTheme.Canvas:Parent.BackColor);
             var r=new RectangleF(1.5f,1.5f,Width-3,Height-4);
-            Color fill=!Enabled?Color.FromArgb(240,240,244):Primary?(down?Color.FromArgb(0,83,180):hover?Color.FromArgb(5,120,234):BigSurTheme.Blue)
-                :(down?Color.FromArgb(228,229,235):hover?Color.FromArgb(246,248,252):Color.White);
+            Color fill=!Enabled?Color.FromArgb(41,43,52):Primary?(down?Color.FromArgb(68,88,179):hover?Color.FromArgb(122,149,245):BigSurTheme.Blue)
+                :(down?Color.FromArgb(57,60,77):hover?Color.FromArgb(65,68,84):Color.FromArgb(51,54,68));
             BigSurTheme.Box(g,new RectangleF(r.X,r.Y+1,r.Width,r.Height),7,Color.FromArgb(16,30,35,56),Color.Transparent);
-            BigSurTheme.Box(g,r,7,fill,Primary&&Enabled?Color.FromArgb(0,89,196):BigSurTheme.Line);
+            BigSurTheme.Box(g,r,7,fill,Primary&&Enabled?Color.FromArgb(120,145,240):BigSurTheme.Line);
             if(Focused && ShowFocusCues) {
                 using(var path=BigSurTheme.Rounded(new RectangleF(1,1,Width-3,Height-3),8))
                 using(var pen=new Pen(Color.FromArgb(70,149,255),2))g.DrawPath(pen,path);
@@ -139,14 +142,14 @@ namespace AliceDesk
         internal SettingsCombo()
         {
             FlatStyle=FlatStyle.Flat;DrawMode=DrawMode.OwnerDrawFixed;
-            ForeColor=BigSurTheme.Ink;BackColor=Color.White;ItemHeight=Math.Max(22,Font.Height+5);
+            ForeColor=BigSurTheme.Ink;BackColor=BigSurTheme.Surface;ItemHeight=Math.Max(22,Font.Height+5);
         }
         protected override void OnFontChanged(EventArgs e){base.OnFontChanged(e);ItemHeight=Math.Max(22,Font.Height+5);}
         protected override void OnDrawItem(DrawItemEventArgs e)
         {
             bool selected=(e.State&DrawItemState.Selected)!=0;
             string value=e.Index>=0&&e.Index<Items.Count?GetItemText(Items[e.Index]):Text;
-            Color bg=selected?BigSurTheme.Blue:Color.White;
+            Color bg=selected?BigSurTheme.Blue:BigSurTheme.Surface;
             using(var b=new SolidBrush(bg))e.Graphics.FillRectangle(b,e.Bounds);
             var r=e.Bounds;r.X+=5;r.Width=Math.Max(r.Width-7,0);
             TextRenderer.DrawText(e.Graphics,value,Font,r,selected?Color.White:BigSurTheme.Ink,
@@ -168,10 +171,10 @@ namespace AliceDesk
             var g=e.Graphics;g.Clear(BigSurTheme.Canvas);
             if(TabCount==0)return;
             var baseRect=Rectangle.Union(GetTabRect(0),GetTabRect(TabCount-1));
-            BigSurTheme.Box(g,baseRect,8,Color.FromArgb(228,228,234),Color.Transparent);
+            BigSurTheme.Box(g,baseRect,8,Color.FromArgb(40,42,54),Color.Transparent);
             for(int i=0;i<TabCount;i++) {
                 var r=GetTabRect(i);bool active=i==SelectedIndex;
-                if(active)BigSurTheme.Box(g,new RectangleF(r.X+1.5f,r.Y+1.5f,r.Width-3,r.Height-3),6,Color.White,Focused?Color.FromArgb(80,154,247):BigSurTheme.Line);
+                if(active)BigSurTheme.Box(g,new RectangleF(r.X+1.5f,r.Y+1.5f,r.Width-3,r.Height-3),6,Color.FromArgb(62,66,84),Focused?Color.FromArgb(80,154,247):BigSurTheme.Line);
                 TextRenderer.DrawText(g,TabPages[i].Text,Font,r,active?BigSurTheme.Ink:BigSurTheme.Muted,
                     TextFormatFlags.VerticalCenter|TextFormatFlags.HorizontalCenter|TextFormatFlags.NoPrefix|TextFormatFlags.SingleLine);
             }
@@ -279,21 +282,21 @@ namespace AliceDesk
         {
             AutoSize=true;AutoSizeMode=AutoSizeMode.GrowAndShrink;FlowDirection=FlowDirection.TopDown;WrapContents=false;
             Margin=new Padding(0,0,0,12);Padding=new Padding(17,10,14,12);
-            BackColor=Color.White;SetStyle(ControlStyles.OptimizedDoubleBuffer|ControlStyles.UserPaint,true);
+            BackColor=BigSurTheme.Surface;SetStyle(ControlStyles.OptimizedDoubleBuffer|ControlStyles.UserPaint,true);
         }
         protected override void OnPaint(PaintEventArgs e)
         {
             e.Graphics.Clear(BigSurTheme.Canvas);
-            BigSurTheme.Box(e.Graphics,new RectangleF(.5f,.5f,Width-1,Height-1),12,Color.White,Color.FromArgb(221,221,229));
+            BigSurTheme.Box(e.Graphics,new RectangleF(.5f,.5f,Width-1,Height-1),12,BigSurTheme.Surface,BigSurTheme.Line);
         }
     }
     internal sealed class SettingsGrid : TableLayoutPanel
     {
-        internal SettingsGrid() {BackColor=Color.White;SetStyle(ControlStyles.OptimizedDoubleBuffer|ControlStyles.UserPaint,true);}
+        internal SettingsGrid() {BackColor=BigSurTheme.Surface;SetStyle(ControlStyles.OptimizedDoubleBuffer|ControlStyles.UserPaint,true);}
         protected override void OnPaint(PaintEventArgs e)
         {
             e.Graphics.Clear(BigSurTheme.Canvas);
-            BigSurTheme.Box(e.Graphics,new RectangleF(.5f,.5f,Width-1,Height-1),12,Color.White,Color.FromArgb(221,221,229));
+            BigSurTheme.Box(e.Graphics,new RectangleF(.5f,.5f,Width-1,Height-1),12,BigSurTheme.Surface,BigSurTheme.Line);
         }
     }
 }

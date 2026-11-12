@@ -7,13 +7,16 @@ namespace AliceDesk
 {
     internal sealed class BigSurHome : UserControl
     {
-        static readonly Color Canvas = Color.FromArgb(248, 248, 251);
-        static readonly Color Ink = Color.FromArgb(32, 33, 43);
-        static readonly Color Secondary = Color.FromArgb(92, 95, 110);
+        static readonly Color Canvas = Color.FromArgb(24, 25, 33);
+        static readonly Color Ink = Color.FromArgb(235, 236, 245);
+        static readonly Color Secondary = Color.FromArgb(171, 175, 194);
         readonly Panel sheet = new Panel();
         readonly Hero banner;
         readonly Label computerHeading, stationHeading;
         readonly Tile[] computer, station;
+        readonly Label modelHeading, modelHint;
+        readonly StationModel preview;
+        readonly CheckBox showClock;
         float scale = 1f;
         bool arranging;
 
@@ -43,6 +46,20 @@ namespace AliceDesk
                 AddTile("recovery", "Диагностика", "Проверки и резервные копии", navigate),
                 AddTile("profiles", "Профили", "Открыть сохранённый профиль", navigate)
             };
+            modelHeading = Heading("Модель Станции");
+            preview = new StationModel { ShowClock = profile.Get("preview.clock", "true") == "true" };
+            sheet.Controls.Add(preview);
+            showClock = new CheckBox { Text = "Показывать часы на модели", AutoSize = true,
+                ForeColor = Ink, BackColor = Canvas, Checked = preview.ShowClock };
+            showClock.CheckedChanged += delegate {
+                preview.ShowClock = showClock.Checked;
+                preview.Invalidate();
+                profile.Set("preview.clock", showClock.Checked ? "true" : "false");
+            };
+            sheet.Controls.Add(showClock);
+            modelHint = new Label { Text = "Поверните модель мышью. Настройка относится к изображению на ПК.",
+                ForeColor = Secondary, BackColor = Canvas, AutoEllipsis = true };
+            sheet.Controls.Add(modelHint);
         }
 
         Label Heading(string text)
@@ -69,7 +86,7 @@ namespace AliceDesk
         protected override void OnLayout(LayoutEventArgs e)
         {
             base.OnLayout(e);
-            if (arranging || station == null || ClientSize.Width < 1) return;
+            if (arranging || station == null || preview == null || ClientSize.Width < 1) return;
             arranging = true;
             try {
                 int viewport = ClientSize.Width;
@@ -91,6 +108,14 @@ namespace AliceDesk
             y += heroHeight + S(19);
             y = PlaceGroup(computerHeading, computer, y, pad, available, columns, gap);
             y = PlaceGroup(stationHeading, station, y + S(7), pad, available, columns, gap);
+            modelHeading.SetBounds(pad, y + S(8), available, S(34));
+            y += S(48);
+            preview.SetBounds(pad, y, available, S(240));
+            y += S(250);
+            showClock.Location = new Point(pad, y);
+            y += S(30);
+            modelHint.SetBounds(pad, y, available, S(38));
+            y += S(40);
             Point scroll = AutoScrollPosition;
             sheet.SetBounds(Math.Max(0, (ClientSize.Width - width) / 2) + scroll.X, scroll.Y, width, y + S(22));
             AutoScrollMinSize = new Size(0, sheet.Height);
@@ -371,8 +396,8 @@ namespace AliceDesk
                 using(var shade=Round(1,3*d,Width-2,Height-3*d,12*d))
                 using(var brush=new SolidBrush(Color.FromArgb(18,49,47,76)))g.FillPath(brush,shade);
                 using(var card=Round(1,1,Width-2,Height-4*d,12*d))
-                using(var brush=new SolidBrush(pressed?Color.FromArgb(234,236,248):hover?Color.FromArgb(252,252,255):Color.White))
-                using(var border=new Pen(Focused&&ShowFocusCues?Color.FromArgb(36,116,230):hover?Color.FromArgb(177,182,209):Color.FromArgb(225,225,233),Focused&&ShowFocusCues?2*d:1*d)) {
+                using(var brush=new SolidBrush(pressed?Color.FromArgb(52,55,72):hover?Color.FromArgb(46,49,65):Color.FromArgb(35,37,48)))
+                using(var border=new Pen(Focused&&ShowFocusCues?Color.FromArgb(92,156,255):hover?Color.FromArgb(100,105,130):Color.FromArgb(57,60,75),Focused&&ShowFocusCues?2*d:1*d)) {
                     g.FillPath(brush,card);g.DrawPath(border,card);
                 }
                 bool compact=Height<88*d;

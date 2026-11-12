@@ -7,11 +7,20 @@ using System.Windows.Forms;
 
 namespace AliceDesk
 {
+    internal sealed class BufferedPanel : Panel
+    {
+        internal BufferedPanel()
+        {
+            DoubleBuffered = true;
+            ResizeRedraw = true;
+        }
+    }
+
     internal sealed class Shell : BigSurWindow
     {
         readonly ProfileStore profiles;
         readonly ProfileButton profileButton=new ProfileButton();
-        readonly Panel body=new Panel();
+        readonly Panel body=new BufferedPanel();
         readonly FlowLayoutPanel nav=new FlowLayoutPanel();
         readonly SectionSearch search=new SectionSearch();
         readonly Label title=new Label(), noMatches=new Label();
@@ -41,7 +50,7 @@ namespace AliceDesk
             var area=Screen.PrimaryScreen.WorkingArea;
             Size=new Size(Math.Min(1160,area.Width),Math.Min(800,area.Height));
             MinimumSize=new Size(Math.Min(850,area.Width),Math.Min(575,area.Height));
-            BackColor=Color.FromArgb(249,248,251);ForeColor=ShellArt.Ink;
+            BackColor=BigSurTheme.Canvas;ForeColor=ShellArt.Ink;
             var layout=new TableLayoutPanel {Dock=DockStyle.Fill,RowCount=1,ColumnCount=2,Margin=Padding.Empty,Padding=Padding.Empty};
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,212));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
@@ -49,7 +58,7 @@ namespace AliceDesk
             var side=new ShellSidebar {Dock=DockStyle.Fill,Margin=Padding.Empty};
             layout.Controls.Add(side,0,0);
             SetSidebar(side);
-            var content=new Panel {Dock=DockStyle.Fill,Margin=Padding.Empty,BackColor=Color.FromArgb(249,248,251)};
+            var content=new BufferedPanel {Dock=DockStyle.Fill,Margin=Padding.Empty,BackColor=BigSurTheme.Canvas};
             layout.Controls.Add(content,1,0);
             body.Dock=DockStyle.Fill;content.Controls.Add(body);
             var toolbar=Toolbar();content.Controls.Add(toolbar);
@@ -66,12 +75,11 @@ namespace AliceDesk
             nav.FlowDirection=FlowDirection.TopDown;nav.WrapContents=false;nav.AutoScroll=true;
             nav.Dock=DockStyle.Fill;nav.Padding=new Padding(11,4,10,8);nav.BackColor=Color.Transparent;
             side.Controls.Add(nav);
-            var header=new Panel {Dock=DockStyle.Top,Height=89,BackColor=Color.Transparent};
-            side.Controls.Add(header);EnableTitleDrag(header);
-            var lights=CreateWindowButtons();lights.Location=new Point(15,14);header.Controls.Add(lights);
-            var brand=new Label {Text="Пульт Станции",AutoSize=true,Location=new Point(19,54),BackColor=Color.Transparent,
+            var header=new Panel {Dock=DockStyle.Top,Height=62,BackColor=Color.Transparent};
+            side.Controls.Add(header);
+            var brand=new Label {Text="Пульт Станции",AutoSize=true,Location=new Point(19,21),BackColor=Color.Transparent,
                 ForeColor=ShellArt.Ink,Font=new Font("Segoe UI Semibold",14)};
-            header.Controls.Add(brand);EnableTitleDrag(brand);
+            header.Controls.Add(brand);
             Group("Управление");
             AddNav("home","Обзор","главная домой начало");
             AddNav("station","Станция","подключение колонка ip ssh adb прошивка свет озвучка");
@@ -90,15 +98,15 @@ namespace AliceDesk
         }
         Control Toolbar()
         {
-            var bar=new Panel {Dock=DockStyle.Top,Height=55,BackColor=Color.FromArgb(248,248,250)};
-            var line=new Panel{BackColor=Color.FromArgb(222,221,228),Height=1,Dock=DockStyle.Bottom};
-            bar.Controls.Add(line);EnableTitleDrag(bar);
+            var bar=new BufferedPanel {Dock=DockStyle.Top,Height=55,BackColor=BigSurTheme.Surface};
+            var line=new Panel{BackColor=BigSurTheme.Line,Height=1,Dock=DockStyle.Bottom};
+            bar.Controls.Add(line);
             back.Location=new Point(11,11);forward.Location=new Point(43,11);
             back.Click+=(s,e)=>MoveHistory(-1);forward.Click+=(s,e)=>MoveHistory(1);
             tips.SetToolTip(back,"Назад (Alt+←)");tips.SetToolTip(forward,"Вперёд (Alt+→)");
             bar.Controls.Add(back);bar.Controls.Add(forward);
             title.AutoSize=true;title.Font=new Font("Segoe UI Semibold",12);title.ForeColor=ShellArt.Ink;
-            title.Location=new Point(82,15);bar.Controls.Add(title);EnableTitleDrag(title);
+            title.Location=new Point(82,15);bar.Controls.Add(title);
             bar.Controls.Add(search);
             bar.Layout+=(s,e)=>search.Location=new Point(bar.ClientSize.Width-search.Width-bar.Height/3,(bar.Height-search.Height)/2);
             search.Input.TextChanged+=(s,e)=>FilterSidebar();
@@ -217,9 +225,13 @@ namespace AliceDesk
         void DisplayPage(string id)
         {
             Control next=id=="ai"?(Control)ai:id=="agent"?agent:id=="music"?music:id=="home"?home:(Control)station;
-            foreach(Control page in body.Controls)page.Visible=page==next;
-            next.BringToFront();
-            if(next==station)station.Navigate(id);
+            body.SuspendLayout();
+            try {
+                if(next==station)station.Navigate(id);
+                next.Visible=true;
+                next.BringToFront();
+                foreach(Control page in body.Controls)if(page!=next && page.Visible)page.Visible=false;
+            } finally {body.ResumeLayout(true);}
             title.Text=links[id].Text;back.Enabled=cursor>0;forward.Enabled=cursor+1<history.Count;
             foreach(var link in links.Values){
                 link.Selected=link.Page==id;link.AccessibleDescription=link.Selected?"Текущий раздел":null;link.Invalidate();
@@ -268,15 +280,15 @@ namespace AliceDesk
 
     internal class Sheet : BigSurWindow
     {
-        internal readonly Panel Page=new Panel {Dock=DockStyle.Fill,Padding=new Padding(16),BackColor=Color.FromArgb(246,246,249)};
+        internal readonly Panel Page=new Panel {Dock=DockStyle.Fill,Padding=new Padding(16),BackColor=BigSurTheme.Canvas};
         internal Sheet(string heading)
         {
             Text=heading;StartPosition=FormStartPosition.CenterParent;ShowInTaskbar=false;
-            Font=new Font("Segoe UI",10);BackColor=Color.FromArgb(248,248,251);
+            Font=new Font("Segoe UI",10);BackColor=BigSurTheme.Surface;
             var bar=new Panel{Dock=DockStyle.Top,Height=53,Padding=new Padding(16,8,14,8),BackColor=BackColor};
             var name=new Label{Text=heading,AutoSize=true,Font=new Font("Segoe UI Semibold",13),ForeColor=ShellArt.Ink,Location=new Point(17,12)};
             var done=new SettingsButton{Text="Готово",Dock=DockStyle.Right,DialogResult=DialogResult.Cancel};
-            bar.Controls.Add(name);bar.Controls.Add(done);CancelButton=done;Controls.Add(Page);Controls.Add(bar);EnableTitleDrag(bar);
+            bar.Controls.Add(name);bar.Controls.Add(done);CancelButton=done;Controls.Add(Page);Controls.Add(bar);
         }
     }
 

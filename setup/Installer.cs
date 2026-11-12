@@ -18,7 +18,7 @@ internal sealed class Installation
     const string Product="Пульт Станции";
     const string AppName="StantsiyaDesk.exe";
     const string AppId="StantsiyaDesk";
-    const string Version="1.1.1";
+    const string Version="1.2.0";
     readonly string root, startMenu, uninstallKey, runKey;
     public Installation(string root,string startMenu,string uninstallKey,string runKey)
     {
@@ -150,7 +150,7 @@ internal sealed class Installation
             Text=installed?"Установка завершена":"Установка Пульта Станции";
             Icon=Icon.ExtractAssociatedIcon(Own);
             FormBorderStyle=FormBorderStyle.FixedDialog;MaximizeBox=false;MinimizeBox=false;
-            BackColor=Color.FromArgb(249,248,252);ForeColor=Color.FromArgb(35,32,47);
+            BackColor=Color.FromArgb(24,25,33);ForeColor=Color.FromArgb(235,236,245);
             Font=new Font("Segoe UI",10);ClientSize=new Size(520,345);
             var layout=new TableLayoutPanel {Dock=DockStyle.Fill,Margin=Padding.Empty,ColumnCount=1,RowCount=4};
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
@@ -161,7 +161,7 @@ internal sealed class Installation
                 Anchor=AnchorStyles.None,TextAlign=ContentAlignment.MiddleCenter,Margin=new Padding(12,13,12,2),Font=new Font(Font.FontFamily,20,FontStyle.Bold)};
             layout.Controls.Add(title,0,1);
             var body=new Label {AutoSize=true,Anchor=AnchorStyles.None,TextAlign=ContentAlignment.MiddleCenter,Margin=new Padding(16,0,16,14),
-                ForeColor=Color.FromArgb(84,79,100),Text=installed?"Приложение можно открыть сейчас или из меню «Пуск».":"Версия "+Version+" для Windows x64.\nПриложение появится в меню «Пуск» у текущего пользователя."};
+                ForeColor=Color.FromArgb(167,170,190),Text=installed?"Приложение можно открыть сейчас или из меню «Пуск».":"Версия "+Version+" для Windows x64.\nПриложение появится в меню «Пуск» у текущего пользователя."};
             layout.Controls.Add(body,0,2);
             var actions=new FlowLayoutPanel {AutoSize=true,FlowDirection=FlowDirection.LeftToRight,WrapContents=false,
                 Anchor=AnchorStyles.None,Margin=new Padding(12,0,12,20)};
@@ -237,13 +237,13 @@ internal sealed class Installation
             var g=e.Graphics;float d=g.DpiX/96f;g.SmoothingMode=SmoothingMode.AntiAlias;
             bool hover=ClientRectangle.Contains(PointToClient(MousePosition));
             using(var p=Rounded(1,1,Width-2,Height-2,7*d))
-            using(var fill=new SolidBrush(primary?(hover?Color.FromArgb(15,101,220):Color.FromArgb(21,114,233)):(hover?Color.FromArgb(242,240,249):Color.White)))
-            using(var edge=new Pen(primary?Color.FromArgb(21,105,219):Color.FromArgb(203,201,214),d)) {g.FillPath(fill,p);g.DrawPath(edge,p);}
-            TextRenderer.DrawText(g,Text,Font,ClientRectangle,primary?Color.White:Color.FromArgb(48,44,64),
+            using(var fill=new SolidBrush(primary?(hover?Color.FromArgb(122,149,245):Color.FromArgb(103,132,240)):(hover?Color.FromArgb(65,68,84):Color.FromArgb(51,54,68))))
+            using(var edge=new Pen(primary?Color.FromArgb(120,145,240):Color.FromArgb(65,68,84),d)) {g.FillPath(fill,p);g.DrawPath(edge,p);}
+            TextRenderer.DrawText(g,Text,Font,ClientRectangle,Color.White,
                 TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter|TextFormatFlags.NoPrefix);
             if(Focused && ShowFocusCues) {
                 var r=ClientRectangle;r.Inflate(-(int)(4*d),-(int)(4*d));
-                ControlPaint.DrawFocusRectangle(g,r,primary?Color.White:Color.Black,primary?Color.RoyalBlue:Color.White);
+                ControlPaint.DrawFocusRectangle(g,r,Color.White,primary?Color.RoyalBlue:Color.FromArgb(51,54,68));
             }
         }
     }

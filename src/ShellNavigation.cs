@@ -7,7 +7,7 @@ namespace AliceDesk
 {
     internal static class ShellArt
     {
-        internal static readonly Color Ink=Color.FromArgb(43,42,54), Muted=Color.FromArgb(93,88,106), Blue=Color.FromArgb(47,110,213);
+        internal static readonly Color Ink=Color.FromArgb(235,236,245), Muted=Color.FromArgb(167,170,190), Blue=Color.FromArgb(125,151,247);
 
         internal static GraphicsPath Shape(RectangleF bounds, float radius)
         {
@@ -21,12 +21,12 @@ namespace AliceDesk
         internal static Color Tint(string id)
         {
             switch(id) {
-            case "station": return Color.FromArgb(119,83,202);
-            case "ai": return Color.FromArgb(147,76,205);
-            case "music": return Color.FromArgb(212,63,107);
-            case "extensions": return Color.FromArgb(89,91,198);
-            case "recovery": return Color.FromArgb(33,134,120);
-            case "profiles": return Color.FromArgb(116,90,183);
+            case "station": return Color.FromArgb(173,149,244);
+            case "ai": return Color.FromArgb(200,153,244);
+            case "music": return Color.FromArgb(244,132,159);
+            case "extensions": return Color.FromArgb(162,165,247);
+            case "recovery": return Color.FromArgb(112,213,190);
+            case "profiles": return Color.FromArgb(177,158,234);
             default: return Blue;
             }
         }
@@ -79,16 +79,16 @@ namespace AliceDesk
 
     internal sealed class ShellSidebar : Panel
     {
-        internal ShellSidebar() {DoubleBuffered=true;BackColor=Color.FromArgb(239,232,245);}
+        internal ShellSidebar() {DoubleBuffered=true;BackColor=Color.FromArgb(29,30,41);}
         protected override void OnPaintBackground(PaintEventArgs e)
         {
             var rect=ClientRectangle;if(rect.Width<1||rect.Height<1)return;
             using(var fill=new LinearGradientBrush(rect,Color.White,Color.White,76f)) {
                 fill.InterpolationColors=new ColorBlend{Positions=new[]{0f,.42f,.77f,1f},
-                    Colors=new[]{Color.FromArgb(246,230,235),Color.FromArgb(239,230,243),Color.FromArgb(227,228,246),Color.FromArgb(217,227,245)}};
+                    Colors=new[]{Color.FromArgb(34,31,46),Color.FromArgb(31,31,44),Color.FromArgb(28,32,45),Color.FromArgb(26,32,45)}};
                 e.Graphics.FillRectangle(fill,rect);
             }
-            using(var edge=new Pen(Color.FromArgb(208,204,218)))e.Graphics.DrawLine(edge,rect.Right-1,0,rect.Right-1,rect.Bottom);
+            using(var edge=new Pen(BigSurTheme.Line))e.Graphics.DrawLine(edge,rect.Right-1,0,rect.Right-1,rect.Bottom);
         }
     }
 
@@ -121,7 +121,7 @@ namespace AliceDesk
             var g=e.Graphics;float s=g.DpiX/96f;g.SmoothingMode=SmoothingMode.AntiAlias;
             var r=new RectangleF(1,1,Width-2,Height-2);
             using(var shape=ShellArt.Shape(r,7*s)) {
-                if(Selected||hot)using(var brush=new SolidBrush(Selected?Color.FromArgb(223,211,233):Color.FromArgb(113,255,255,255)))g.FillPath(brush,shape);
+                if(Selected||hot)using(var brush=new SolidBrush(Selected?Color.FromArgb(72,67,103):Color.FromArgb(40,255,255,255)))g.FillPath(brush,shape);
                 if(Focused&&ShowFocusCues)using(var pen=new Pen(ShellArt.Blue,1.5f*s))g.DrawPath(pen,shape);
             }
             int size=(int)(18*s),x=(int)(10*s);
@@ -147,9 +147,9 @@ namespace AliceDesk
             var g=e.Graphics;float s=g.DpiX/96f;
             g.SmoothingMode=SmoothingMode.AntiAlias;
             if(Enabled && (hot || (Focused&&ShowFocusCues)))using(var r=ShellArt.Shape(new RectangleF(1,1,Width-2,Height-2),6*s))
-                using(var fill=new SolidBrush(Color.FromArgb(230,229,236)))g.FillPath(fill,r);
+                using(var fill=new SolidBrush(Color.FromArgb(61,64,82)))g.FillPath(fill,r);
             int k=(int)(19*s);
-            ShellArt.Glyph(g,id,new RectangleF((Width-k)/2f,(Height-k)/2f,k,k),Enabled?ShellArt.Ink:Color.FromArgb(175,173,181));
+            ShellArt.Glyph(g,id,new RectangleF((Width-k)/2f,(Height-k)/2f,k,k),Enabled?ShellArt.Ink:Color.FromArgb(92,95,110));
         }
     }
 
@@ -190,10 +190,10 @@ namespace AliceDesk
         internal readonly TextBox Input=new TextBox();
         internal SectionSearch()
         {
-            DoubleBuffered=true;BackColor=Color.FromArgb(248,248,250);Size=new Size(194,29);
-            Input.AccessibleName="Поиск по разделам";Input.BorderStyle=BorderStyle.None;Input.BackColor=Color.White;Input.ForeColor=ShellArt.Ink;
+            DoubleBuffered=true;BackColor=BigSurTheme.Canvas;Size=new Size(194,29);
+            Input.AccessibleName="Поиск по разделам";Input.BorderStyle=BorderStyle.None;Input.BackColor=BigSurTheme.Surface;Input.ForeColor=ShellArt.Ink;
             Input.Font=new Font("Segoe UI",9.5f);Input.MaxLength=100;
-            placeholder.Text="Поиск по разделам";placeholder.ForeColor=ShellArt.Muted;placeholder.BackColor=Color.White;placeholder.Font=Input.Font;
+            placeholder.Text="Поиск по разделам";placeholder.ForeColor=ShellArt.Muted;placeholder.BackColor=BigSurTheme.Surface;placeholder.Font=Input.Font;
             placeholder.TextAlign=ContentAlignment.MiddleLeft;placeholder.Cursor=Cursors.IBeam;placeholder.TabStop=false;
             Controls.Add(Input);Controls.Add(placeholder);placeholder.BringToFront();
             placeholder.MouseDown+=(s,e)=>Input.Focus();MouseDown+=(s,e)=>Input.Focus();
@@ -213,7 +213,7 @@ namespace AliceDesk
         {
             float s=e.Graphics.DpiX/96f;e.Graphics.SmoothingMode=SmoothingMode.AntiAlias;
             using(var path=ShellArt.Shape(new RectangleF(1,1,Width-3,Height-3),7*s))
-            using(var bg=new SolidBrush(Color.White))using(var pen=new Pen(Input.Focused?ShellArt.Blue:Color.FromArgb(209,207,216),Input.Focused?2*s:1*s)) {
+            using(var bg=new SolidBrush(BigSurTheme.Surface))using(var pen=new Pen(Input.Focused?ShellArt.Blue:BigSurTheme.Line,Input.Focused?2*s:1*s)) {
                 e.Graphics.FillPath(bg,path);e.Graphics.DrawPath(pen,path);
             }
             var k=15*s;ShellArt.Glyph(e.Graphics,"search",new RectangleF(8*s,(Height-k)/2,k,k),ShellArt.Muted);

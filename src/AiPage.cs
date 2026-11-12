@@ -114,8 +114,10 @@ namespace AliceDesk
             var tabs = new SettingsTabs();
             var textTab = new TabPage("Провайдер и чат");
             var voiceTab = new TabPage("Голос на Станции");
+            var windowsVoiceTab = new TabPage("Голос Windows");
             tabs.TabPages.Add(textTab);
             tabs.TabPages.Add(voiceTab);
+            tabs.TabPages.Add(windowsVoiceTab);
             Controls.Add(tabs);
             var grid = Grid(textTab);
             Row(grid, "Провайдер", provider);
@@ -137,6 +139,7 @@ namespace AliceDesk
             Row(grid, "Диалог", transcript);
             locked.AddRange(new Control[] {provider, address, secret, models, ask});
             SetupVoice(voiceTab);
+            SetupWindowsVoice(windowsVoiceTab);
             ReloadChoices(profile.Get("ai.provider", "deepseek"));
             provider.SelectedIndexChanged += delegate { Guard(delegate { SelectProvider(); }); };
             address.TextChanged += delegate {
@@ -210,6 +213,7 @@ namespace AliceDesk
                 var ok = new Button {Text = "Добавить", DialogResult = DialogResult.OK, Left = 276, Top = 66, Width = 100};
                 dialog.Controls.Add(ok);
                 dialog.AcceptButton = ok;
+                Shell.Style(dialog);
                 if (dialog.ShowDialog(this) != DialogResult.OK) return;
                 if (String.IsNullOrWhiteSpace(name.Text)) throw new AiFailure("Введите название провайдера.");
                 string id = "p" + Guid.NewGuid().ToString("N");
@@ -354,6 +358,7 @@ namespace AliceDesk
                     history.Add(new AiTurn("user", question));
                     history.Add(new AiTurn("assistant", answer.Text));
                     transcript.AppendText((transcript.TextLength == 0 ? "" : "\r\n\r\n") + "Вы\r\n" + question + "\r\n\r\n" + answer.Model + "\r\n" + answer.Text);
+                    if (windowsVoiceAuto.Checked) SpeakWindows(answer.Text);
                     ask.Clear();
                     result.Text = "Получен текстовый ответ от " + answer.Model + " за " + elapsed.ElapsedMilliseconds + " мс." +
                         (answer.Finish == "length" ? " Сервер остановил генерацию из-за лимита длины." : "") + " Голос колонки проверяется отдельно.";
@@ -366,7 +371,7 @@ namespace AliceDesk
         }
         protected override void Dispose(bool disposing)
         {
-            if (disposing) { Cancel(); client.Dispose(); }
+            if (disposing) { DisposeWindowsVoice(); Cancel(); client.Dispose(); }
             base.Dispose(disposing);
         }
         public static void SelfTest() { AiChecks.Run(); }
