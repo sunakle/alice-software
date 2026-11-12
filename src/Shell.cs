@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace AliceDesk
@@ -16,12 +17,60 @@ namespace AliceDesk
         }
     }
 
+    // A page contains native edit boxes, lists and buttons in separate child windows.
+    // Composite those windows together so the old and new pages cannot be shown
+    // partially painted during a transition.
+    internal sealed class PagePanel : Panel
+    {
+        [DllImport("user32.dll")]
+        static extern IntPtr SendMessage(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
+        [DllImport("user32.dll")]
+        static extern bool RedrawWindow(IntPtr window, IntPtr update, IntPtr region, uint flags);
+        internal void BeginSwitch() { if(IsHandleCreated)SendMessage(Handle, 0x000b, IntPtr.Zero, IntPtr.Zero); }
+        internal void EndSwitch()
+        {
+            if(!IsHandleCreated)return;
+            SendMessage(Handle, 0x000b, new IntPtr(1), IntPtr.Zero);
+            RedrawWindow(Handle, IntPtr.Zero, IntPtr.Zero, 0x0185);
+        }
+        internal PagePanel()
+        {
+            DoubleBuffered = true;
+            ResizeRedraw = true;
+        }
+        protected override CreateParams CreateParams
+        {
+            get {
+                var parameters = base.CreateParams;
+                parameters.ExStyle |= 0x02000000; // WS_EX_COMPOSITED
+                return parameters;
+            }
+        }
+    }
+
+    internal sealed class NavigationPanel : FlowLayoutPanel
+    {
+        internal NavigationPanel()
+        {
+            DoubleBuffered = true;
+            ResizeRedraw = true;
+        }
+        protected override CreateParams CreateParams
+        {
+            get {
+                var parameters = base.CreateParams;
+                parameters.ExStyle |= 0x02000000; // WS_EX_COMPOSITED
+                return parameters;
+            }
+        }
+    }
+
     internal sealed class Shell : BigSurWindow
     {
         readonly ProfileStore profiles;
         readonly ProfileButton profileButton=new ProfileButton();
-        readonly Panel body=new BufferedPanel();
-        readonly FlowLayoutPanel nav=new FlowLayoutPanel();
+        readonly PagePanel body=new PagePanel();
+        readonly FlowLayoutPanel nav=new NavigationPanel();
         readonly SectionSearch search=new SectionSearch();
         readonly Label title=new Label(), noMatches=new Label();
         readonly HistoryButton back=new HistoryButton("back","Назад"), forward=new HistoryButton("forward","Вперёд");
@@ -202,7 +251,15 @@ namespace AliceDesk
                 view.Dock=DockStyle.Fill;view.Visible=false;body.Controls.Add(view);
                 if(view!=home)Style(view);
             }
+            // Prepare child windows before the form is visible. Creating dozens of native
+            // controls on the first click otherwise exposes partially rendered pages.
+            foreach(Control view in body.Controls) PreparePage(view);
             history.Clear();cursor=-1;ShowPage("home");
+        }
+        static void PreparePage(Control control)
+        {
+            var handle=control.Handle;
+            foreach(Control child in control.Controls)PreparePage(child);
         }
         internal static void Style(Control root){BigSurTheme.Apply(root);}
         void ShowPage(string id)
@@ -225,16 +282,25 @@ namespace AliceDesk
         void DisplayPage(string id)
         {
             Control next=id=="ai"?(Control)ai:id=="agent"?agent:id=="music"?music:id=="home"?home:(Control)station;
+            bool redraw=body.IsHandleCreated && body.Visible;
+            if(redraw)body.BeginSwitch();
             body.SuspendLayout();
             try {
                 if(next==station)station.Navigate(id);
                 next.Visible=true;
                 next.BringToFront();
                 foreach(Control page in body.Controls)if(page!=next && page.Visible)page.Visible=false;
-            } finally {body.ResumeLayout(true);}
+            } finally {
+                try { body.ResumeLayout(true); }
+                finally { if(redraw)body.EndSwitch(); }
+            }
             title.Text=links[id].Text;back.Enabled=cursor>0;forward.Enabled=cursor+1<history.Count;
             foreach(var link in links.Values){
-                link.Selected=link.Page==id;link.AccessibleDescription=link.Selected?"Текущий раздел":null;link.Invalidate();
+                bool selected=link.Page==id;
+                if(link.Selected==selected)continue;
+                link.Selected=selected;
+                link.AccessibleDescription=selected?"Текущий раздел":null;
+                link.Invalidate();
             }
         }
         Control Home(){return new BigSurHome(profiles.Active,id=>Guard(()=>ShowPage(id)));}

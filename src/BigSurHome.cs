@@ -14,9 +14,6 @@ namespace AliceDesk
         readonly Hero banner;
         readonly Label computerHeading, stationHeading;
         readonly Tile[] computer, station;
-        readonly Label modelHeading, modelHint;
-        readonly StationModel preview;
-        readonly CheckBox showClock;
         float scale = 1f;
         bool arranging;
 
@@ -46,20 +43,6 @@ namespace AliceDesk
                 AddTile("recovery", "Диагностика", "Проверки и резервные копии", navigate),
                 AddTile("profiles", "Профили", "Открыть сохранённый профиль", navigate)
             };
-            modelHeading = Heading("Модель Станции");
-            preview = new StationModel { ShowClock = profile.Get("preview.clock", "true") == "true" };
-            sheet.Controls.Add(preview);
-            showClock = new CheckBox { Text = "Показывать часы на модели", AutoSize = true,
-                ForeColor = Ink, BackColor = Canvas, Checked = preview.ShowClock };
-            showClock.CheckedChanged += delegate {
-                preview.ShowClock = showClock.Checked;
-                preview.Invalidate();
-                profile.Set("preview.clock", showClock.Checked ? "true" : "false");
-            };
-            sheet.Controls.Add(showClock);
-            modelHint = new Label { Text = "Поверните модель мышью. Настройка относится к изображению на ПК.",
-                ForeColor = Secondary, BackColor = Canvas, AutoEllipsis = true };
-            sheet.Controls.Add(modelHint);
         }
 
         Label Heading(string text)
@@ -86,7 +69,7 @@ namespace AliceDesk
         protected override void OnLayout(LayoutEventArgs e)
         {
             base.OnLayout(e);
-            if (arranging || station == null || preview == null || ClientSize.Width < 1) return;
+            if (arranging || station == null || ClientSize.Width < 1) return;
             arranging = true;
             try {
                 int viewport = ClientSize.Width;
@@ -108,14 +91,6 @@ namespace AliceDesk
             y += heroHeight + S(19);
             y = PlaceGroup(computerHeading, computer, y, pad, available, columns, gap);
             y = PlaceGroup(stationHeading, station, y + S(7), pad, available, columns, gap);
-            modelHeading.SetBounds(pad, y + S(8), available, S(34));
-            y += S(48);
-            preview.SetBounds(pad, y, available, S(240));
-            y += S(250);
-            showClock.Location = new Point(pad, y);
-            y += S(30);
-            modelHint.SetBounds(pad, y, available, S(38));
-            y += S(40);
             Point scroll = AutoScrollPosition;
             sheet.SetBounds(Math.Max(0, (ClientSize.Width - width) / 2) + scroll.X, scroll.Y, width, y + S(22));
             AutoScrollMinSize = new Size(0, sheet.Height);

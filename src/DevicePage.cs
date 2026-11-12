@@ -124,8 +124,15 @@ namespace AliceDesk
         }
         public void Navigate(string section) {
             Control next=section=="recovery"?recovery:section=="extensions"?extensions:station;
-            foreach(var c in new[]{station,recovery,extensions}) c.Visible=(c==next);
-            next.BringToFront();
+            Control parent=next.Parent;
+            parent.SuspendLayout();
+            try {
+                // Put the destination in place before removing the current page.
+                next.Visible=true;
+                next.BringToFront();
+                foreach(var page in new[]{station,recovery,extensions})
+                    if(page!=next && page.Visible)page.Visible=false;
+            } finally { parent.ResumeLayout(true); }
         }
         protected override void Dispose(bool disposing) {
             if(disposing) {life.Cancel();Cancel();lock(Active){DevicePage found;if(Active.TryGetValue(profile.Id,out found)&&found==this)Active.Remove(profile.Id);}}

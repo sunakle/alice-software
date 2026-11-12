@@ -163,21 +163,24 @@ namespace AliceDesk
     {
         internal SettingsTabs()
         {
-            SetStyle(ControlStyles.UserPaint|ControlStyles.AllPaintingInWmPaint|ControlStyles.OptimizedDoubleBuffer,true);
-            Dock=DockStyle.Fill; Padding=new Point(15,7);
+            // Keep the native tab control responsible for showing and hiding pages.
+            // Painting the whole control in OnPaint clears the area occupied by child
+            // controls and can leave their pixels on screen during page changes.
+            DrawMode=TabDrawMode.OwnerDrawFixed;
+            Appearance=TabAppearance.FlatButtons;
+            Dock=DockStyle.Fill;
+            Padding=new Point(15,7);
+            BackColor=BigSurTheme.Canvas;
         }
-        protected override void OnPaint(PaintEventArgs e)
+        protected override void OnDrawItem(DrawItemEventArgs e)
         {
-            var g=e.Graphics;g.Clear(BigSurTheme.Canvas);
-            if(TabCount==0)return;
-            var baseRect=Rectangle.Union(GetTabRect(0),GetTabRect(TabCount-1));
-            BigSurTheme.Box(g,baseRect,8,Color.FromArgb(40,42,54),Color.Transparent);
-            for(int i=0;i<TabCount;i++) {
-                var r=GetTabRect(i);bool active=i==SelectedIndex;
-                if(active)BigSurTheme.Box(g,new RectangleF(r.X+1.5f,r.Y+1.5f,r.Width-3,r.Height-3),6,Color.FromArgb(62,66,84),Focused?Color.FromArgb(80,154,247):BigSurTheme.Line);
-                TextRenderer.DrawText(g,TabPages[i].Text,Font,r,active?BigSurTheme.Ink:BigSurTheme.Muted,
-                    TextFormatFlags.VerticalCenter|TextFormatFlags.HorizontalCenter|TextFormatFlags.NoPrefix|TextFormatFlags.SingleLine);
-            }
+            if(e.Index<0 || e.Index>=TabCount)return;
+            var g=e.Graphics;var r=e.Bounds;bool active=e.Index==SelectedIndex;
+            using(var background=new SolidBrush(BigSurTheme.Canvas))g.FillRectangle(background,r);
+            if(active)BigSurTheme.Box(g,new RectangleF(r.X+1.5f,r.Y+1.5f,r.Width-3,r.Height-3),6,
+                Color.FromArgb(62,66,84),Focused?Color.FromArgb(80,154,247):BigSurTheme.Line);
+            TextRenderer.DrawText(g,TabPages[e.Index].Text,Font,r,active?BigSurTheme.Ink:BigSurTheme.Muted,
+                TextFormatFlags.VerticalCenter|TextFormatFlags.HorizontalCenter|TextFormatFlags.NoPrefix|TextFormatFlags.SingleLine);
         }
         protected override void OnSelectedIndexChanged(EventArgs e){base.OnSelectedIndexChanged(e);Invalidate();}
         protected override void OnGotFocus(EventArgs e){base.OnGotFocus(e);Invalidate();}

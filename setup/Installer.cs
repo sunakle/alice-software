@@ -18,7 +18,7 @@ internal sealed class Installation
     const string Product="Пульт Станции";
     const string AppName="StantsiyaDesk.exe";
     const string AppId="StantsiyaDesk";
-    const string Version="1.2.0";
+    const string Version="1.2.1";
     readonly string root, startMenu, uninstallKey, runKey;
     public Installation(string root,string startMenu,string uninstallKey,string runKey)
     {
