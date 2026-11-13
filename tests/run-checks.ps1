@@ -36,6 +36,7 @@ try {
     # process-wide WinForms options and load the application assembly.
     Run-Check 'AI, loopback HTTP and local TLS' 'ai-smoke.ps1' @()
     Run-Check 'Home Assistant reconnection and acknowledgements' 'ha-reconnect.ps1' @()
+    Run-Check 'Spotify and voice phrase routing' 'spotify-checks.ps1' @()
     Run-Check 'Device fixtures and encrypted backups' 'device-offline.ps1' @('-AppExe', $application)
     $bash = Join-Path $env:ProgramFiles 'Git\bin\bash.exe'
     if (Test-Path -LiteralPath $bash) {
@@ -47,6 +48,7 @@ try {
     Run-Check 'Windows commands and media' 'media-windows.ps1' @('-ApplicationPath', $application)
     Run-Check 'Window navigation and section search' 'ui-layout.ps1' @('-ApplicationPath', $application, '-OutputDirectory', (Join-Path $temp 'layout'))
     Run-Check 'Compact window layout' 'ui-layout.ps1' @('-ApplicationPath', $application, '-OutputDirectory', (Join-Path $temp 'compact'), '-Width', '880', '-Height', '620')
+    Run-Check 'Spotify and phrase editor layout' 'music-layout.ps1' @('-ApplicationPath', $application, '-OutputDirectory', (Join-Path $temp 'music'))
     Run-Check 'Window controls' 'window-chrome.ps1' @('-ApplicationPath', $application)
 
     if ($Visual) {

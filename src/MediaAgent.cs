@@ -22,6 +22,9 @@ namespace AliceDesk {
         const string AlternateTokenKey = "agent.haToken2";
         const string SecondAlternateTokenKey = "agent.haToken3";
         readonly Profile profile;
+        readonly SpotifyClient spotify;
+        readonly CancellationTokenSource lifetime=new CancellationTokenSource();
+        readonly SemaphoreSlim execution=new SemaphoreSlim(1,1);
         readonly ListBox definitions;
         readonly TextBox id, phrases, target, manual, server, token, pair, journal;
         readonly ComboBox type, network;
@@ -35,42 +38,45 @@ namespace AliceDesk {
         string lastState;
         DateTime retryAt;
         public AgentPage(Profile p) {
-            Dock=DockStyle.Fill; profile=p;
+            Dock=DockStyle.Fill; profile=p;spotify=new SpotifyClient(p);
             string loadError=null;
             try { actions=MediaCommands.Load(p); }
             catch (Exception ex) { actions=new List<DeskAction>(); loadError="Не удалось загрузить команды профиля. "+ex.Message; }
             var tabs=new SettingsTabs();
             Controls.Add(tabs);
-            var local=new TabPage("Команды этого ПК"); var ha=new TabPage("Подключение Home Assistant");
+            var local=new TabPage("Фразы и действия"); var ha=new TabPage("Голос через Home Assistant");
             tabs.TabPages.Add(local); tabs.TabPages.Add(ha);
             var b=MediaUi.Body(local);
-            MediaUi.Line(b,"Команды этого ПК",true);
+            MediaUi.Line(b,"Что включать по вашей фразе",true);
             MediaUi.Line(b,"Выберите действие или создайте своё. Разрешение на выполнение выдаётся на этом компьютере и не переносится с импортом профиля.");
-            definitions=new ListBox { Width=525, Height=68 }; b.Controls.Add(definitions);
+            definitions=new ListBox { Width=600, Height=100 }; b.Controls.Add(definitions);
             var row=MediaUi.Row(b);
             MediaUi.Line(row,"ID"); id=MediaUi.Field(row,"",145);
-            MediaUi.Line(row,"Тип"); type=new SettingsCombo { Width=160,DropDownStyle=ComboBoxStyle.DropDownList };
-            type.Items.AddRange(new object[]{"Программа .exe","Сайт HTTPS","Медиаклавиша"}); row.Controls.Add(type);
+            MediaUi.Line(row,"Тип"); type=new SettingsCombo { Width=190,DropDownStyle=ComboBoxStyle.DropDownList };
+            type.Items.AddRange(new object[]{"Программа .exe","Сайт HTTPS","Медиаклавиша","Spotify"}); row.Controls.Add(type);
             MediaUi.Line(b,"Фразы и синонимы через точку с запятой");
             phrases=MediaUi.Field(b,"",490);
-            MediaUi.Line(b,"Цель. Для медиаклавиши допустимы play-pause, next, previous, mute, volume-up, volume-down.");
+            var targetHelp=MediaUi.Line(b,"Цель действия");
+            type.SelectedIndexChanged+=delegate {targetHelp.Text=type.SelectedIndex==3?"Ссылка Spotify на песню, исполнителя, альбом или плейлист. Вход и устройство — в разделе «Музыка».":type.SelectedIndex==2?"Медиаклавиша: play-pause, next, previous, mute, volume-up, volume-down.":type.SelectedIndex==1?"Полная ссылка HTTPS":"Путь к программе .exe";};
             row=MediaUi.Row(b); target=MediaUi.Field(row,"",380);
-            MediaUi.Btn(row,"Выбрать .exe",delegate {
+            var browse=MediaUi.Btn(row,"Выбрать .exe",delegate {
                 using (var dialog=new OpenFileDialog { Filter="Программа (*.exe)|*.exe",CheckFileExists=true }) {
                     if (dialog.ShowDialog(this)==DialogResult.OK) { target.Text=dialog.FileName; type.SelectedIndex=0; }
                 }
             });
+            type.SelectedIndexChanged+=delegate {browse.Visible=type.SelectedIndex==0;};
             row=MediaUi.Row(b);
             MediaUi.Btn(row,"Новое",delegate { definitions.ClearSelected(); id.Text=""; phrases.Text=""; target.Text=""; type.SelectedIndex=0; id.Focus(); });
+            MediaUi.Btn(row,"Новая музыкальная фраза",delegate {NewSpotify();});
             MediaUi.Btn(row,"Сохранить и разрешить",delegate { Guard(Save); },true);
             MediaUi.Btn(row,"Удалить",delegate { Guard(Remove); });
             MediaUi.Line(b,"Испытать фразу вручную",true);
             row=MediaUi.Row(b); manual=MediaUi.Field(row,"открой хром",245);
-            MediaUi.Btn(row,"Выполнить на этом ПК",delegate {
-                Guard(delegate {
+            MediaUi.Btn(row,"Испытать фразу",async delegate {
+                try {
                     var a=MediaCommands.Resolve(actions,manual.Text); Log("Фраза совпала с «"+a.Id+"».");
-                    Execute(a.Id);
-                });
+                    await ExecuteAsync(a.Id,lifetime.Token);
+                } catch(Exception ex) {Log("Не выполнено. "+ex.Message);}
             });
             MediaUi.Btn(row,"Подтверждаю результат",delegate { Log("Пользователь подтвердил видимый результат на ПК."); });
             var autorun=new CheckBox { Text="Запускать агент при входе в Windows",AutoSize=true }; b.Controls.Add(autorun);
@@ -105,6 +111,7 @@ namespace AliceDesk {
             MediaUi.Btn(row,"Проверить и подключить",async delegate { await Connect(); },true);
             MediaUi.Btn(row,"Отозвать доступ",delegate { Guard(Revoke); });
             MediaUi.Btn(row,"Инструкция Home Assistant",delegate { Guard(ShowGuide); });
+            MediaUi.Btn(row,"Экспорт фраз для HA",delegate {Guard(ExportVoice);},true);
             netStatus=MediaUi.Line(b,"Отключено. Локальные команды доступны.");
             MediaUi.Line(b,"Голос до прошивки",true);
             MediaUi.Line(b,"Независимый навык «ПК Мост» использует собственный клиент и код привязки. В обычной Алисе сначала вызовите навык. Для своего агента можно использовать Assist и сценарий из инструкции.");
@@ -152,10 +159,25 @@ namespace AliceDesk {
         void Edit() {
             var a=definitions.SelectedItem as DeskAction; if (a==null) return;
             id.Text=a.Id; phrases.Text=a.Phrases; target.Text=a.Target;
-            type.SelectedIndex=a.Kind=="url"?1:a.Kind=="media"?2:0;
+            type.SelectedIndex=a.Kind=="url"?1:a.Kind=="media"?2:a.Kind=="spotify"?3:0;
+        }
+        internal void NewSpotify() {
+            var tabs=Controls.OfType<SettingsTabs>().First();tabs.SelectedIndex=0;
+            var body=tabs.TabPages[0].Controls.OfType<SettingsBody>().First();body.AutoScrollPosition=Point.Empty;
+            definitions.ClearSelected();id.Text="music_"+Guid.NewGuid().ToString("N").Substring(0,8);
+            type.SelectedIndex=3;phrases.Text="";target.Text="";phrases.Focus();
+        }
+        void ExportVoice() {
+            string package=VoiceExport.Package(actions,profile);
+            using(var dialog=new SaveFileDialog {Filter="Home Assistant package (*.yaml)|*.yaml",FileName="stantsiya_desk.yaml"}) {
+                if(dialog.ShowDialog(this)!=DialogResult.OK)return;
+                // Conversation triggers and helpers travel together in one package.
+                Disk.Atomic(dialog.FileName,package,false);
+                Log("Пакет HA сохранён: "+dialog.FileName+". Инструкция — docs/spotify.md. После изменения фраз повторите экспорт.");
+            }
         }
         void Save() {
-            var a=MediaCommands.Validate(new DeskAction { Id=id.Text.Trim(),Phrases=phrases.Text.Trim(),Target=target.Text.Trim(),Kind=type.SelectedIndex==1?"url":type.SelectedIndex==2?"media":"exe" });
+            var a=MediaCommands.Validate(new DeskAction { Id=id.Text.Trim(),Phrases=phrases.Text.Trim(),Target=target.Text.Trim(),Kind=type.SelectedIndex==1?"url":type.SelectedIndex==2?"media":type.SelectedIndex==3?"spotify":"exe" });
             var old=definitions.SelectedItem as DeskAction;
             if (actions.Any(x=>x!=old && (x.Id==a.Id || MediaCommands.Aliases(x.Phrases).Intersect(MediaCommands.Aliases(a.Phrases)).Any())))
                 throw new InvalidOperationException("Такой ID или фраза уже назначены другому действию.");
@@ -188,6 +210,19 @@ namespace AliceDesk {
             Log("Агент получил действие «"+a.Id+"».");
             MediaCommands.Run(a,profile.Get("local.agent.approved."+a.Id,""));
             Log("Windows приняла вызов для «"+a.Id+"».");
+        }
+        async Task ExecuteAsync(string actionId,CancellationToken ct) {
+            if(!await execution.WaitAsync(0,ct))throw new InvalidOperationException("Предыдущая команда ещё выполняется. Повторите после её завершения.");
+            try {
+                var action=actions.SingleOrDefault(a=>a.Id==actionId);
+                if(action==null)throw new InvalidOperationException("Действие не настроено на этом ПК.");
+                if(action.Kind!="spotify"){Execute(actionId);return;}
+                // Snapshot the locally approved target before crossing an await boundary.
+                var snapshot=MediaCommands.Validate(new DeskAction {Id=action.Id,Phrases=action.Phrases,Kind=action.Kind,Target=action.Target});
+                MediaCommands.VerifyApproval(snapshot,profile.Get("local.agent.approved."+snapshot.Id));
+                await spotify.Play(snapshot.Target,ct);
+                Log("Spotify принял команду «"+snapshot.Id+"». Проверьте звук на выбранном устройстве.");
+            } finally {execution.Release();}
         }
         void Stop() {
             timer.Stop();
@@ -331,8 +366,12 @@ namespace AliceDesk {
                     {"local.agent.haSeen",recent},
                     {"local.agent.pendingAcks",journal}
                 });
-                try { Execute(cmd); pending.result="ok"; netStatus.Text="Windows приняла действие «"+cmd+"»."; }
-                catch (Exception ex) { pending.result="denied"; netStatus.Text="Команда отклонена. "+ex.Message; Log(netStatus.Text); }
+                try { await ExecuteAsync(cmd,ct); pending.result="ok"; if(!IsDisposed)netStatus.Text="Команда «"+cmd+"» принята."; }
+                catch (Exception ex) {
+                    pending.result=ex is SpotifyOutcomeUnknownException?"unknown":"denied";
+                    if(!IsDisposed) {netStatus.Text=(pending.result=="unknown"?"Результат неизвестен. ":"Команда отклонена. ")+ex.Message;Log(netStatus.Text);}
+                }
+                if(session!=lease || IsDisposed || ct.IsCancellationRequested)return;
                 profile.Set("local.agent.pendingAcks",MediaCommands.Serializer.Serialize(entries));
                 await conn.Ack(ev,pending.result,ct);
                 if(session==lease && !ct.IsCancellationRequested && !IsDisposed)RemovePendingAck(origin,ev);
@@ -353,7 +392,7 @@ namespace AliceDesk {
             netStatus.Text="Агент отключён. Прежний адресат отозван. Удалите токен в профиле пользователя Home Assistant.";
         }
         protected override void Dispose(bool disposing) {
-            if (disposing) { CancelConnectionCheck(); Stop(); timer.Dispose(); }
+            if (disposing) { lifetime.Cancel();CancelConnectionCheck(); Stop(); timer.Dispose();spotify.Dispose();lifetime.Dispose(); }
             base.Dispose(disposing);
         }
     }

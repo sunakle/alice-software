@@ -79,6 +79,8 @@ namespace AliceDesk {
                 if (!Uri.TryCreate(a.Target,UriKind.Absolute,out u) || u.Scheme != "https" || u.UserInfo != "" || String.IsNullOrEmpty(u.Host))
                     throw new InvalidOperationException("Введите полный HTTPS-адрес без пароля.");
                 a.Target = u.AbsoluteUri;
+            } else if(a.Kind=="spotify") {
+                a.Target=SpotifyClient.Target(a.Target);
             } else if (a.Kind != "media" || !MediaKeys.Contains(a.Target)) throw new InvalidOperationException("Неизвестное действие или медиаклавиша.");
             return a;
         }
@@ -103,6 +105,7 @@ namespace AliceDesk {
         [DllImport("user32.dll")] static extern void keybd_event(byte key,byte scan,uint flags,UIntPtr extra);
         internal static void Run(DeskAction action,string approval) {
             Validate(action);
+            if(action.Kind=="spotify")throw new InvalidOperationException("Spotify требует асинхронного запуска через подключённый профиль.");
             if (String.IsNullOrEmpty(approval))
                 throw new InvalidOperationException("Действие или программа изменились. Локально разрешите выбранную цель в редакторе.");
             if (action.Kind == "exe") {
@@ -120,7 +123,7 @@ namespace AliceDesk {
                 byte code = KeyCodes[Array.IndexOf(MediaKeys,action.Target)]; keybd_event(code,0,0,UIntPtr.Zero); keybd_event(code,0,2,UIntPtr.Zero);
             }
         }
-        static void VerifyApproval(DeskAction action,string approval) {
+        internal static void VerifyApproval(DeskAction action,string approval) {
             if (approval != Fingerprint(action)) throw new InvalidOperationException("Действие или программа изменились. Локально разрешите выбранную цель в редакторе.");
         }
         static void Reject(Action test) {

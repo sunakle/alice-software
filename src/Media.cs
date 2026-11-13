@@ -45,9 +45,14 @@ namespace AliceDesk {
         readonly Label status;
         readonly Button tone, confirmSpotify;
         bool updating;
-        public MediaPage(Profile p) {
+        public MediaPage(Profile p) : this(p,null) {}
+        internal MediaPage(Profile p,Action openCommands) {
             profile = p; Dock = DockStyle.Fill;
-            var body = MediaUi.Body(this);
+            var tabs=new SettingsTabs();Controls.Add(tabs);
+            var spotify=new TabPage("Spotify и фразы");var audio=new TabPage("Звук и Bluetooth");
+            tabs.TabPages.Add(spotify);tabs.TabPages.Add(audio);
+            spotify.Controls.Add(new SpotifyPage(p,openCommands));
+            var body = MediaUi.Body(audio);
             MediaUi.Line(body, "Музыка с компьютера", true);
             MediaUi.Line(body,"Скажите «Алиса, включи Bluetooth». В Windows добавьте колонку в списке Bluetooth. Во время музыки ПК и Станция должны быть включены.");
             var row = MediaUi.Row(body);

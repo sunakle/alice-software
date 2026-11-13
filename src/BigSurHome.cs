@@ -34,7 +34,7 @@ namespace AliceDesk
             computerHeading = Heading("Без подключения к Станции");
             computer = new[] {
                 AddTile("ai", "Нейросети", "DeepSeek и другие модели", navigate),
-                AddTile("agent", "Команды ПК", "Приложения и фразы", navigate),
+                AddTile("agent", "Голос и команды", "Музыка и свои фразы", navigate),
                 AddTile("music", "Музыка", "Spotify и Bluetooth", navigate)
             };
             stationHeading = Heading("Настройка Станции");

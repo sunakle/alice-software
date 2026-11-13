@@ -278,9 +278,29 @@ namespace AliceDesk
                 }
                 card.Controls.Add(item);
                 if(!item.AutoSize && !(item is Label))fieldWidths[item]=item.Width;
+                var row=item as FlowLayoutPanel;
+                if(row!=null)RememberWidths(row);
             }
             ResumeLayout(true);Fit();
             ClientSizeChanged+=(s,e)=>Fit();
+        }
+        void RememberWidths(Control parent)
+        {
+            foreach(Control child in parent.Controls) {
+                if(!child.AutoSize && !(child is Label))fieldWidths[child]=child.Width;
+                if(child is FlowLayoutPanel)RememberWidths(child);
+            }
+        }
+        void FitRow(FlowLayoutPanel row,int available)
+        {
+            row.MaximumSize=new Size(available,0);
+            foreach(Control child in row.Controls) {
+                int room=Math.Max(60,available-row.Padding.Horizontal-child.Margin.Horizontal);
+                var nested=child as FlowLayoutPanel;
+                if(nested!=null)FitRow(nested,room);
+                else if(child is Label || child is Button)child.MaximumSize=new Size(room,0);
+                else {int original;if(fieldWidths.TryGetValue(child,out original))child.Width=Math.Min(original,room);}
+            }
         }
         void Fit()
         {
@@ -293,7 +313,8 @@ namespace AliceDesk
                     var inner=Math.Max(125,width-card.Padding.Horizontal-10);
                     foreach(Control c in card.Controls) {
                         var row=c as FlowLayoutPanel;
-                        if(c is Label || row!=null)c.MaximumSize=new Size(inner,0);
+                        if(row!=null)FitRow(row,inner);
+                        else if(c is Label || c is Button)c.MaximumSize=new Size(inner,0);
                         else {
                             int desiredWidth;
                             if(fieldWidths.TryGetValue(c,out desiredWidth))c.Width=Math.Min(inner,desiredWidth);

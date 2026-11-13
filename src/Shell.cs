@@ -133,7 +133,7 @@ namespace AliceDesk
             AddNav("home","Обзор","главная домой начало");
             AddNav("station","Станция","подключение колонка ip ssh adb прошивка свет озвучка");
             AddNav("ai","Нейросети","deepseek дипсик ollama llm чат api модели голос");
-            AddNav("agent","Команды ПК","chrome хром программы home assistant голос команды");
+            AddNav("agent","Голос и команды","chrome хром программы home assistant голос команды фразы плейлист исполнитель");
             AddNav("music","Музыка","spotify спотифай звук bluetooth блютуз");
             Group("Инструменты");
             AddNav("extensions","Расширения","каталог возможности плагины airplay часы");
@@ -246,7 +246,7 @@ namespace AliceDesk
             while(body.Controls.Count>0)body.Controls[0].Dispose();
             home=Home();
             station=new DevicePage(profiles.Active);ai=new AiPage(profiles.Active);
-            agent=new AgentPage(profiles.Active);music=new MediaPage(profiles.Active);
+            agent=new AgentPage(profiles.Active);music=new MediaPage(profiles.Active,()=>{ShowPage("agent");agent.NewSpotify();});
             foreach(var view in new Control[]{home,station,ai,agent,music}){
                 view.Dock=DockStyle.Fill;view.Visible=false;body.Controls.Add(view);
                 if(view!=home)Style(view);
@@ -367,7 +367,7 @@ namespace AliceDesk
             var content=new RichTextBox {Dock=DockStyle.Fill,ReadOnly=true,BackColor=Color.White,Font=new Font("Segoe UI",11),BorderStyle=BorderStyle.None,DetectUrls=true};
             Page.Controls.Add(content);Page.Controls.Add(topics);
             string dir=Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"docs");
-            var names=new Dictionary<string,string>{{"Первый запуск и передача колонки","owner.md"},{"Станция и восстановление","device.md"},{"Нейросети и голос","ai.md"},{"Музыка и голосовые команды","media.md"},{"Проверка сборки","verification.md"}};
+            var names=new Dictionary<string,string>{{"Первый запуск и передача колонки","owner.md"},{"Spotify и свои фразы","spotify.md"},{"Станция и восстановление","device.md"},{"Нейросети и голос","ai.md"},{"Музыка и голосовые команды","media.md"},{"Проверка сборки","verification.md"}};
             topics.SelectedIndexChanged+=(s,e)=>{string f=Path.Combine(dir,names[(string)topics.SelectedItem]); content.Text=File.Exists(f)?File.ReadAllText(f,Disk.Utf8):"Файл отсутствует в установленной копии.";};
             topics.Items.AddRange(names.Keys.ToArray());topics.SelectedIndex=0;
             Shell.Style(Page);

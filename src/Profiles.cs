@@ -83,6 +83,10 @@ namespace AliceDesk
         {
             if(rule==null || rule.Id==null || rule.Phrases==null || rule.Target==null) return false;
             if(rule.Kind=="exe" || rule.Kind=="media") return true;
+            if(rule.Kind=="spotify") {
+                try {rule.Target=SpotifyClient.Target(rule.Target);return true;}
+                catch(InvalidOperationException) {return false;}
+            }
             Uri u;
             return rule.Kind=="url" && Uri.TryCreate(rule.Target,UriKind.Absolute,out u) && u.Scheme=="https" &&
                 u.UserInfo=="" && u.Query=="" && u.Fragment=="";
